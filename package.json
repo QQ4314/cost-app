@@ -1,0 +1,14 @@
+{
+  "name": "cost-app",
+  "version": "1.0.0",
+  "description": "产品成本管理 - 成本录入、核算与查询",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "multer": "^2.2.0"
+  }
+}
