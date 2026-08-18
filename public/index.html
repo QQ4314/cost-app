@@ -74,10 +74,6 @@
       <div class="stats-bar" id="mgmtStats"></div>
       <div class="mgmt-grid">
         <div class="mgmt-card">
-          <h3>📋 费用审批</h3>
-          <div id="approvalList"></div>
-        </div>
-        <div class="mgmt-card">
           <h3>📊 数据统计</h3>
           <div id="dataStats"></div>
         </div>
@@ -113,31 +109,20 @@
         <form onsubmit="saveProcurement(event)">
           <input type="hidden" id="procEditId">
           <div class="form-row">
-            <div class="form-group"><label>采购日期</label><input type="date" class="form-control" id="procDate"></div>
-            <div class="form-group"><label>供应商 <span style="color:var(--danger)">*</span></label><input type="text" class="form-control" id="procSupplier" required placeholder="供应商名称"></div>
+            <div class="form-group"><label>下单日期</label><input type="date" class="form-control" id="procDate"></div>
+            <div class="form-group"><label>品牌 <span style="color:var(--danger)">*</span></label><input type="text" class="form-control" id="procBrand" required placeholder="品牌名称"></div>
           </div>
           <div class="form-row">
-            <div class="form-group"><label>原材料名称 <span style="color:var(--danger)">*</span></label><input type="text" class="form-control" id="procMaterial" required placeholder="原材料名称"></div>
-            <div class="form-group"><label>规格</label><input type="text" class="form-control" id="procSpec" placeholder="规格型号"></div>
+            <div class="form-group"><label>品名 <span style="color:var(--danger)">*</span></label><input type="text" class="form-control" id="procProductName" required placeholder="产品名称"></div>
           </div>
           <div class="form-row form-row-3">
-            <div class="form-group"><label>数量</label><input type="number" class="form-control" id="procQty" step="1" placeholder="0" oninput="calcProcPreview()"></div>
-            <div class="form-group"><label>单位</label><input type="text" class="form-control" id="procUnit" placeholder="如: 个、kg"></div>
-            <div class="form-group"><label>单价</label><input type="number" class="form-control" id="procPrice" step="0.01" placeholder="0.00" oninput="calcProcPreview()"></div>
+            <div class="form-group"><label>下单数量</label><input type="number" class="form-control" id="procOrderQty" step="1" placeholder="0"></div>
+            <div class="form-group"><label>产出数量</label><input type="number" class="form-control" id="procOutputQty" step="1" placeholder="0"></div>
           </div>
-          <div class="form-row">
-            <div class="form-group"><label>关联批次号</label><input type="text" class="form-control" id="procBatchCode" placeholder="关联批次号"></div>
-            <div class="form-group"><label>状态</label>
-              <select class="form-control" id="procStatus">
-                <option value="pending">待审批</option>
-                <option value="approved">已审批</option>
-                <option value="received">已入库</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-group"><label>备注</label><textarea class="form-control" id="procNotes" rows="2" placeholder="备注信息"></textarea></div>
-          <div class="preview-bar" style="background:#f5f3ff;border-radius:8px;padding:10px;text-align:center;font-size:15px;margin-bottom:12px">
-            总金额: <strong id="procTotalDisplay" style="color:#8b5cf6">¥0.00</strong>
+          <div class="form-row form-row-3">
+            <div class="form-group"><label>原料价格</label><input type="number" class="form-control" id="procMaterialPrice" step="0.01" placeholder="0.00"></div>
+            <div class="form-group"><label>包材价格</label><input type="number" class="form-control" id="procPackagingPrice" step="0.01" placeholder="0.00"></div>
+            <div class="form-group"><label>工费</label><input type="number" class="form-control" id="procLaborCost" step="0.01" placeholder="0.00"></div>
           </div>
           <button type="submit" class="btn btn-primary" style="background:#8b5cf6">保存</button>
         </form>
