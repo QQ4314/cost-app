@@ -118,15 +118,13 @@ function deleteShipExpense(id) {
 
 // ===== 采购端 =====
 function renderProcurement(list) {
-  var totalAmount = list.reduce(function(s, p) { return s + (Number(p.quantity)||0) * (Number(p.unitPrice)||0); }, 0);
-  var totalQty = list.reduce(function(s, p) { return s + (Number(p.quantity)||0); }, 0);
-  var pendingCount = list.filter(function(p) { return p.status === 'pending'; }).length;
+  var totalOrderQty = list.reduce(function(s, p) { return s + (Number(p.orderQty)||0); }, 0);
+  var totalOutputQty = list.reduce(function(s, p) { return s + (Number(p.outputQty)||0); }, 0);
 
   document.getElementById('procStats').innerHTML =
     '<div class="stat-card"><div class="num" style="color:#8b5cf6">' + list.length + '</div><div class="label">采购记录</div></div>' +
-    '<div class="stat-card"><div class="num" style="color:#8b5cf6">' + totalQty + '</div><div class="label">总数量</div></div>' +
-    '<div class="stat-card"><div class="num" style="color:#8b5cf6">¥' + totalAmount.toFixed(2) + '</div><div class="label">采购总额</div></div>' +
-    '<div class="stat-card"><div class="num" style="color:#f59e0b">' + pendingCount + '</div><div class="label">待审批</div></div>';
+    '<div class="stat-card"><div class="num" style="color:#8b5cf6">' + totalOrderQty + '</div><div class="label">下单总量</div></div>' +
+    '<div class="stat-card"><div class="num" style="color:#8b5cf6">' + totalOutputQty + '</div><div class="label">产出总量</div></div>';
 
   if (list.length === 0) {
     document.getElementById('procList').innerHTML = '<div class="empty-state"><div class="icon">🛒</div><p>暂无采购记录</p></div>';
@@ -134,25 +132,21 @@ function renderProcurement(list) {
   }
 
   var h = '<div style="overflow-x:auto"><table class="proc-table"><thead><tr>' +
-    '<th>采购日期</th><th>供应商</th><th>原材料</th><th>规格</th>' +
-    '<th class="num-col">数量</th><th>单位</th><th class="num-col">单价</th>' +
-    '<th class="num-col">总金额</th><th>批次号</th><th>状态</th><th style="width:90px">操作</th></tr></thead><tbody>';
+    '<th>下单日期</th><th>品牌</th><th>品名</th>' +
+    '<th class="num-col">下单数量</th><th class="num-col">产出数量</th>' +
+    '<th class="num-col">原料价格</th><th class="num-col">包材价格</th><th class="num-col">工费</th>' +
+    '<th style="width:90px">操作</th></tr></thead><tbody>';
 
   list.forEach(function(p) {
-    var total = (Number(p.quantity)||0) * (Number(p.unitPrice)||0);
-    var statusText = {'pending':'待审批','approved':'已审批','received':'已入库'}[p.status] || p.status;
-    var statusColor = {'pending':'#f59e0b','approved':'#10b981','received':'#06b6d4'}[p.status] || '#94a3b8';
     h += '<tr>' +
       '<td>' + esc(p.date||'') + '</td>' +
-      '<td><strong>' + esc(p.supplier||'') + '</strong></td>' +
-      '<td>' + esc(p.material||'') + '</td>' +
-      '<td>' + esc(p.specification||'') + '</td>' +
-      '<td class="num-col">' + (Number(p.quantity)||0) + '</td>' +
-      '<td>' + esc(p.unit||'') + '</td>' +
-      '<td class="num-col">' + num(p.unitPrice) + '</td>' +
-      '<td class="num-col" style="font-weight:700;color:#8b5cf6">¥' + total.toFixed(2) + '</td>' +
-      '<td>' + esc(p.batchCode||'') + '</td>' +
-      '<td><span style="color:' + statusColor + ';font-weight:600">' + statusText + '</span></td>' +
+      '<td><strong>' + esc(p.brand||'') + '</strong></td>' +
+      '<td>' + esc(p.productName||'') + '</td>' +
+      '<td class="num-col">' + (Number(p.orderQty)||0) + '</td>' +
+      '<td class="num-col">' + (Number(p.outputQty)||0) + '</td>' +
+      '<td class="num-col">' + num(p.materialPrice) + '</td>' +
+      '<td class="num-col">' + num(p.packagingPrice) + '</td>' +
+      '<td class="num-col">' + num(p.laborCost) + '</td>' +
       '<td><button class="btn btn-xs btn-outline" onclick="event.stopPropagation();openProcEdit(' + p.id + ')" style="font-size:11px;padding:2px 8px">✏️</button> <button class="btn btn-xs btn-danger" onclick="event.stopPropagation();deleteProcurement(' + p.id + ')" style="font-size:11px;padding:2px 8px">🗑️</button></td></tr>';
   });
 
@@ -163,16 +157,13 @@ function renderProcurement(list) {
 function openProcAdd() {
   document.getElementById('procEditId').value = '';
   document.getElementById('procDate').value = new Date().toISOString().slice(0, 10);
-  document.getElementById('procSupplier').value = '';
-  document.getElementById('procMaterial').value = '';
-  document.getElementById('procSpec').value = '';
-  document.getElementById('procQty').value = '';
-  document.getElementById('procUnit').value = '';
-  document.getElementById('procPrice').value = '';
-  document.getElementById('procBatchCode').value = '';
-  document.getElementById('procStatus').value = 'pending';
-  document.getElementById('procNotes').value = '';
-  document.getElementById('procTotalDisplay').textContent = '¥0.00';
+  document.getElementById('procBrand').value = '';
+  document.getElementById('procProductName').value = '';
+  document.getElementById('procOrderQty').value = '';
+  document.getElementById('procOutputQty').value = '';
+  document.getElementById('procMaterialPrice').value = '';
+  document.getElementById('procPackagingPrice').value = '';
+  document.getElementById('procLaborCost').value = '';
   document.getElementById('procModal').style.display = '';
 }
 
@@ -181,44 +172,33 @@ function openProcEdit(id) {
   if (!p) return;
   document.getElementById('procEditId').value = p.id;
   document.getElementById('procDate').value = p.date || '';
-  document.getElementById('procSupplier').value = p.supplier || '';
-  document.getElementById('procMaterial').value = p.material || '';
-  document.getElementById('procSpec').value = p.specification || '';
-  document.getElementById('procQty').value = p.quantity || '';
-  document.getElementById('procUnit').value = p.unit || '';
-  document.getElementById('procPrice').value = p.unitPrice || '';
-  document.getElementById('procBatchCode').value = p.batchCode || '';
-  document.getElementById('procStatus').value = p.status || 'pending';
-  document.getElementById('procNotes').value = p.notes || '';
-  calcProcPreview();
+  document.getElementById('procBrand').value = p.brand || '';
+  document.getElementById('procProductName').value = p.productName || '';
+  document.getElementById('procOrderQty').value = p.orderQty || '';
+  document.getElementById('procOutputQty').value = p.outputQty || '';
+  document.getElementById('procMaterialPrice').value = p.materialPrice || '';
+  document.getElementById('procPackagingPrice').value = p.packagingPrice || '';
+  document.getElementById('procLaborCost').value = p.laborCost || '';
   document.getElementById('procModal').style.display = '';
 }
 
 function closeProcModal() { document.getElementById('procModal').style.display = 'none'; }
 
-function calcProcPreview() {
-  var qty = Number(document.getElementById('procQty').value) || 0;
-  var price = Number(document.getElementById('procPrice').value) || 0;
-  document.getElementById('procTotalDisplay').textContent = '¥' + (qty * price).toFixed(2);
-}
-
 function saveProcurement(e) {
   e.preventDefault();
   var editId = document.getElementById('procEditId').value;
-  var supplier = document.getElementById('procSupplier').value.trim();
-  var material = document.getElementById('procMaterial').value.trim();
-  if (!supplier || !material) { toast('请填写供应商和原材料', 'error'); return; }
+  var brand = document.getElementById('procBrand').value.trim();
+  var productName = document.getElementById('procProductName').value.trim();
+  if (!brand || !productName) { toast('请填写品牌和品名', 'error'); return; }
   var obj = {
     date: document.getElementById('procDate').value,
-    supplier: supplier,
-    material: material,
-    specification: document.getElementById('procSpec').value.trim(),
-    quantity: document.getElementById('procQty').value.trim() || '0',
-    unit: document.getElementById('procUnit').value.trim(),
-    unitPrice: document.getElementById('procPrice').value.trim() || '0',
-    batchCode: document.getElementById('procBatchCode').value.trim(),
-    status: document.getElementById('procStatus').value,
-    notes: document.getElementById('procNotes').value.trim(),
+    brand: brand,
+    productName: productName,
+    orderQty: document.getElementById('procOrderQty').value.trim() || '0',
+    outputQty: document.getElementById('procOutputQty').value.trim() || '0',
+    materialPrice: document.getElementById('procMaterialPrice').value.trim() || '0',
+    packagingPrice: document.getElementById('procPackagingPrice').value.trim() || '0',
+    laborCost: document.getElementById('procLaborCost').value.trim() || '0',
     updated_at: nowStr()
   };
   if (editId) {
@@ -241,12 +221,10 @@ function deleteProcurement(id) {
 
 function exportProcCSV() {
   if (procData.records.length === 0) { toast('没有数据可导出', 'error'); return; }
-  var h = ['采购日期','供应商','原材料','规格','数量','单位','单价','总金额','批次号','状态','备注','录入时间'];
+  var h = ['下单日期','品牌','品名','下单数量','产出数量','原料价格','包材价格','工费','录入时间'];
   var rows = [h.map(function(c) { return '"' + c + '"'; }).join(',')];
   procData.records.forEach(function(p) {
-    var total = (Number(p.quantity)||0) * (Number(p.unitPrice)||0);
-    var statusText = {'pending':'待审批','approved':'已审批','received':'已入库'}[p.status] || p.status;
-    rows.push([p.date||'',p.supplier||'',p.material||'',p.specification||'',p.quantity||'0',p.unit||'',p.unitPrice||'0',total.toFixed(2),p.batchCode||'',statusText,p.notes||'',p.created_at||''].map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(','));
+    rows.push([p.date||'',p.brand||'',p.productName||'',p.orderQty||'0',p.outputQty||'0',p.materialPrice||'0',p.packagingPrice||'0',p.laborCost||'0',p.created_at||''].map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(','));
   });
   var csv = '﻿' + rows.join('\n');
   var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'}), url = URL.createObjectURL(blob), a = document.createElement('a');
@@ -260,43 +238,15 @@ function renderManagement() {
   var totalProcRecords = procData.records.length;
   var totalShipExpenses = (data.shipExpenses || []).length;
   var totalShipCost = (data.shipExpenses || []).reduce(function(s, x) { return s + Number(x.amount); }, 0);
-  var totalProcAmount = procData.records.reduce(function(s, p) { return s + (Number(p.quantity)||0) * (Number(p.unitPrice)||0); }, 0);
-  var pendingApprovals = procData.records.filter(function(p) { return p.status === 'pending'; }).length;
 
   document.getElementById('mgmtStats').innerHTML =
     '<div class="stat-card"><div class="num" style="color:#8b5cf6">' + totalProcRecords + '</div><div class="label">采购记录</div></div>' +
-    '<div class="stat-card"><div class="num" style="color:#f59e0b">' + totalShipExpenses + '</div><div class="label">运输费用</div></div>' +
-    '<div class="stat-card"><div class="num" style="color:#f59e0b">' + pendingApprovals + '</div><div class="label">待审批</div></div>';
-
-  // 费用审批列表
-  var approvalHtml = '';
-  var pendingProc = procData.records.filter(function(p) { return p.status === 'pending'; });
-  if (pendingProc.length > 0) {
-    approvalHtml += '<div style="margin-bottom:12px"><h4 style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">🛒 采购审批</h4>';
-    pendingProc.forEach(function(p) {
-      var total = (Number(p.quantity)||0) * (Number(p.unitPrice)||0);
-      approvalHtml += '<div class="approval-item">' +
-        '<div><div style="font-weight:600">' + esc(p.supplier) + ' - ' + esc(p.material) + '</div>' +
-        '<div style="font-size:12px;color:var(--text-secondary)">¥' + total.toFixed(2) + ' | ' + (p.date||'') + '</div></div>' +
-        '<div class="approval-actions">' +
-          '<button class="btn-approve" onclick="approveProcurement(' + p.id + ')">✓ 通过</button>' +
-          '<button class="btn-reject" onclick="rejectProcurement(' + p.id + ')">✕ 拒绝</button>' +
-        '</div></div>';
-    });
-    approvalHtml += '</div>';
-  }
-
-  if (!approvalHtml) {
-    approvalHtml = '<div style="text-align:center;color:var(--text-secondary);padding:20px">暂无待审批事项</div>';
-  }
-  document.getElementById('approvalList').innerHTML = approvalHtml;
+    '<div class="stat-card"><div class="num" style="color:#f59e0b">' + totalShipExpenses + '</div><div class="label">运输费用</div></div>';
 
   // 数据统计
   document.getElementById('dataStats').innerHTML =
     '<div style="display:grid;gap:12px">' +
       '<div style="display:flex;justify-content:space-between;padding:8px;background:var(--bg);border-radius:8px"><span>运输总成本</span><strong style="color:#f59e0b">¥' + totalShipCost.toFixed(2) + '</strong></div>' +
-      '<div style="display:flex;justify-content:space-between;padding:8px;background:var(--bg);border-radius:8px"><span>采购总额</span><strong style="color:#8b5cf6">¥' + totalProcAmount.toFixed(2) + '</strong></div>' +
-      '<div style="display:flex;justify-content:space-between;padding:8px;background:var(--bg);border-radius:8px"><span>总成本</span><strong style="color:var(--success)">¥' + totalShipCost.toFixed(2) + '</strong></div>' +
     '</div>';
 
   // 系统设置
@@ -307,23 +257,6 @@ function renderManagement() {
       '<button class="btn btn-sm btn-danger" onclick="clearAllData()" style="width:100%">🗑️ 清空所有数据</button>' +
       '<div style="font-size:11px;color:var(--text-secondary);text-align:center;margin-top:8px">批次成本管理 v1.0</div>' +
     '</div>';
-}
-
-function approveProcurement(id) {
-  var idx = procData.records.findIndex(function(p) { return p.id === id; });
-  if (idx === -1) return;
-  procData.records[idx].status = 'approved';
-  procData.records[idx].updated_at = nowStr();
-  saveProcData(); toast('已审批通过', 'success'); render();
-}
-
-function rejectProcurement(id) {
-  if (!confirm('确定拒绝？')) return;
-  var idx = procData.records.findIndex(function(p) { return p.id === id; });
-  if (idx === -1) return;
-  procData.records[idx].status = 'rejected';
-  procData.records[idx].updated_at = nowStr();
-  saveProcData(); toast('已拒绝', 'info'); render();
 }
 
 function exportAllData() {
