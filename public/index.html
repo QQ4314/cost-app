@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>批次成本管理</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="header">
+    <h1>📦 批次成本管理</h1>
+    <p>录入生产批次信息，自动核算单位成本</p>
+  </div>
+  <div class="container-wide" id="app">
+    <div class="search-bar" style="margin-bottom:14px">
+      <input type="text" class="form-control" id="searchInput" placeholder="搜索批次编码 / 品名 / 批次..." oninput="onSearch()">
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="summary" onclick="switchTab('summary')"><span class="icon">📊</span>汇总</button>
+      <button class="tab" data-tab="production" onclick="switchTab('production')"><span class="icon">🏭</span>生产端</button>
+      <button class="tab" data-tab="shipping" onclick="switchTab('shipping')"><span class="icon">🚚</span>运输端</button>
+    </div>
+    <div id="tabSummary" class="tab-content active">
+      <div class="stats-bar" id="summaryStats"></div>
+      <div id="summaryList" class="product-grid" style="display:none"></div>
+    </div>
+    <div id="tabProduction" class="tab-content">
+      <div class="stats-bar" id="prodStats"></div>
+      <div id="prodList"></div>
+      <div style="display:flex;gap:8px;justify-content:center;margin:16px 0">
+        <button class="btn btn-sm btn-primary" onclick="openAdd()" style="width:auto;padding:10px 24px">➕ 新增批次</button>
+        <button class="btn btn-sm btn-outline" onclick="exportCSV()" style="width:auto;padding:10px 24px">📤 导出CSV</button>
+      </div>
+    </div>
+    <div id="tabShipping" class="tab-content">
+      <div class="stats-bar" id="shipStats"></div>
+      <div id="shipList" class="product-grid"></div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
+        <button class="btn btn-sm btn-primary" onclick="openShipModal()" style="width:auto;padding:10px 24px;background:#f59e0b">➕ 新增费用</button>
+      </div>
+    </div>
+    <div class="pagination" style="margin-top:16px">
+      <button class="page-btn" id="prevPage" onclick="changePage(-1)">← 上一页</button>
+      <span class="page-info" id="pageInfo">第 1 页</span>
+      <button class="page-btn" id="nextPage" onclick="changePage(1)">下一页 →</button>
+    </div>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script src="js/app.js?v=3"></script>
+</body>
+</html>
