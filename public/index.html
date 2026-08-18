@@ -63,9 +63,11 @@
     <!-- 运输端 -->
     <div id="tabShipping" class="tab-content">
       <div class="stats-bar" id="shipStats"></div>
-      <div id="shipList" class="product-grid"></div>
-      <div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
-        <button class="btn btn-sm btn-primary" onclick="openShipModal()" style="width:auto;padding:10px 24px;background:#f59e0b">➕ 新增费用</button>
+      <div id="shipList"></div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-primary" onclick="openPickupModal()" style="width:auto;padding:10px 20px;background:#f59e0b">➕ 新增提货</button>
+        <button class="btn btn-sm btn-primary" onclick="openPickupBatchModal()" style="width:auto;padding:10px 20px;background:#10b981">📦 新增提货批次</button>
+        <button class="btn btn-sm btn-primary" onclick="openShipExpenseModal()" style="width:auto;padding:10px 20px;background:#6366f1">💰 新增费用</button>
       </div>
     </div>
 
@@ -84,19 +86,79 @@
       </div>
     </div>
 
-    <!-- 运输端新增费用弹窗 -->
-    <div id="shipModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeShipModal()">
-      <div class="modal-content" style="max-width:450px">
-        <button class="modal-close" onclick="closeShipModal()">✕</button>
-        <h3 style="margin-bottom:16px">🚚 新增运输费用</h3>
-        <form onsubmit="saveShipExpense(event)">
-          <input type="hidden" id="shipEditId">
-          <div class="form-group"><label>费用说明 <span style="color:var(--danger)">*</span></label><input type="text" class="form-control" id="shipDesc" required placeholder="如: 快递费、物流费"></div>
+    <!-- 新增提货弹窗 -->
+    <div id="pickupModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closePickupModal()">
+      <div class="modal-content" style="max-width:500px">
+        <button class="modal-close" onclick="closePickupModal()">✕</button>
+        <h3 style="margin-bottom:16px">🚚 新增提货</h3>
+        <form onsubmit="savePickup(event)">
+          <div class="form-group">
+            <label>选择批次号 <span style="color:var(--danger)">*</span></label>
+            <input type="text" class="form-control" id="pickupBatchSearch" placeholder="输入关键字搜索批次号..." oninput="searchBatch(this.value)" autocomplete="off">
+            <div id="batchSearchResults" style="display:none;position:absolute;z-index:10;background:var(--card);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;width:calc(100% - 32px);margin-top:4px"></div>
+            <input type="hidden" id="pickupBatchNo">
+            <div id="selectedBatchInfo" style="display:none;margin-top:8px;padding:8px;background:var(--bg);border-radius:8px;font-size:13px"></div>
+          </div>
           <div class="form-row">
-            <div class="form-group"><label>金额 <span style="color:var(--danger)">*</span></label><input type="number" class="form-control" id="shipAmount" step="0.01" required placeholder="0.00"></div>
-            <div class="form-group"><label>日期</label><input type="date" class="form-control" id="shipDate"></div>
+            <div class="form-group"><label>提货数量 <span style="color:var(--danger)">*</span></label><input type="number" class="form-control" id="pickupQty" step="1" required placeholder="0" oninput="updatePickupNo()"></div>
+          </div>
+          <div class="form-group">
+            <label>提货号（自动生成）</label>
+            <input type="text" class="form-control" id="pickupNo" readonly style="background:var(--bg)">
           </div>
           <button type="submit" class="btn btn-primary" style="background:#f59e0b">保存</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- 新增提货批次弹窗 -->
+    <div id="pickupBatchModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closePickupBatchModal()">
+      <div class="modal-content" style="max-width:700px">
+        <button class="modal-close" onclick="closePickupBatchModal()">✕</button>
+        <h3 style="margin-bottom:16px">📦 新增提货批次</h3>
+        <form onsubmit="savePickupBatch(event)">
+          <div class="form-row">
+            <div class="form-group"><label>提货日期 <span style="color:var(--danger)">*</span></label><input type="date" class="form-control" id="pickupBatchDate" required></div>
+          </div>
+          <div class="form-group">
+            <label>选择提货号 <span style="color:var(--danger)">*</span></label>
+            <input type="text" class="form-control" id="pickupNoSearch" placeholder="输入关键字搜索提货号..." oninput="searchPickupNo(this.value)" autocomplete="off">
+            <div id="pickupNoSearchResults" style="display:none;position:absolute;z-index:10;background:var(--card);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;width:calc(100% - 32px);margin-top:4px"></div>
+          </div>
+          <div id="selectedPickups" style="margin:12px 0"></div>
+          <div class="form-group">
+            <label>提货批次号（点击生成）</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" class="form-control" id="pickupBatchNo" readonly style="background:var(--bg);flex:1">
+              <button type="button" class="btn btn-sm btn-primary" onclick="generatePickupBatchNo()" style="background:#10b981;white-space:nowrap">生成批次号</button>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="background:#10b981">保存</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- 新增费用弹窗 -->
+    <div id="shipExpenseModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeShipExpenseModal()">
+      <div class="modal-content" style="max-width:500px">
+        <button class="modal-close" onclick="closeShipExpenseModal()">✕</button>
+        <h3 style="margin-bottom:16px">💰 新增费用</h3>
+        <form onsubmit="saveShipExpense(event)">
+          <div class="form-group">
+            <label>选择提货批次号 <span style="color:var(--danger)">*</span></label>
+            <select class="form-control" id="expenseBatchNo" required>
+              <option value="">请选择提货批次号</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>货车运费</label><input type="number" class="form-control" id="truckFee" step="0.01" placeholder="0.00"></div>
+            <div class="form-group"><label>杂费</label><input type="number" class="form-control" id="miscFee" step="0.01" placeholder="0.00"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>海运费</label><input type="number" class="form-control" id="oceanFee" step="0.01" placeholder="0.00"></div>
+            <div class="form-group"><label>仓储费</label><input type="number" class="form-control" id="storageFee" step="0.01" placeholder="0.00"></div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="background:#6366f1">保存</button>
         </form>
       </div>
     </div>
@@ -139,6 +201,6 @@
 
   <div id="toast" class="toast"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/app.js?v=5"></script>
+  <script src="js/app.js?v=6"></script>
 </body>
 </html>
