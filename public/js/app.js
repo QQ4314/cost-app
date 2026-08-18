@@ -452,6 +452,128 @@ function exportProcCSV() {
   toast('导出成功 ' + procData.records.length + ' 条', 'success');
 }
 
+// ===== 云端同步 =====
+var GIST_ID = 'cost-app-data-sync';
+var gistToken = localStorage.getItem('cost_gist_token') || '';
+var gistId = localStorage.getItem('cost_gist_id') || '';
+
+function renderCloudSync() {
+  var html = '<div style="display:grid;gap:12px">';
+  if (gistToken) {
+    html += '<div style="padding:8px;background:#d1fae5;border-radius:8px;font-size:13px;color:#065f46">✅ 已配置 Token</div>';
+    html += '<button class="btn btn-sm btn-primary" onclick="syncToCloud()" style="width:100%;background:#10b981">⬆️ 上传到云端</button>';
+    html += '<button class="btn btn-sm btn-primary" onclick="syncFromCloud()" style="width:100%;background:#6366f1">⬇️ 从云端下载</button>';
+    html += '<button class="btn btn-sm btn-outline" onclick="clearToken()" style="width:100%">🔓 清除 Token</button>';
+  } else {
+    html += '<div style="font-size:13px;color:var(--text-secondary)">配置 GitHub Token 后可多浏览器同步数据</div>';
+    html += '<div class="form-group"><label>GitHub Personal Access Token</label><input type="password" class="form-control" id="gistTokenInput" placeholder="ghp_xxxx..."></div>';
+    html += '<button class="btn btn-sm btn-primary" onclick="saveToken()" style="width:100%;background:#10b981">💾 保存 Token</button>';
+    html += '<div style="font-size:11px;color:var(--text-secondary)">Token 需要 gist 权限，<a href="https://github.com/settings/tokens/new?scopes=gist&description=cost-app-sync" target="_blank" style="color:#6366f1">点击创建</a></div>';
+  }
+  html += '</div>';
+  document.getElementById('cloudSync').innerHTML = html;
+}
+
+function saveToken() {
+  var token = document.getElementById('gistTokenInput').value.trim();
+  if (!token) { toast('请输入 Token', 'error'); return; }
+  gistToken = token;
+  localStorage.setItem('cost_gist_token', token);
+  toast('Token 已保存', 'success');
+  renderCloudSync();
+}
+
+function clearToken() {
+  if (!confirm('确定清除 Token？')) return;
+  gistToken = '';
+  gistId = '';
+  localStorage.removeItem('cost_gist_token');
+  localStorage.removeItem('cost_gist_id');
+  toast('Token 已清除', 'info');
+  renderCloudSync();
+}
+
+function getAllData() {
+  return {
+    procurement: procData,
+    shipping: {
+      pickups: data.pickups || [],
+      pickupBatches: data.pickupBatches || [],
+      shipExpenses: data.shipExpenses || []
+    },
+    syncTime: nowStr()
+  };
+}
+
+function syncToCloud() {
+  if (!gistToken) { toast('请先配置 Token', 'error'); return; }
+  var allData = getAllData();
+  var body = {
+    description: 'Cost App Data Sync',
+    files: {
+      'cost-app-data.json': {
+        content: JSON.stringify(allData, null, 2)
+      }
+    }
+  };
+  if (gistId) {
+    body.gist_id = gistId;
+  }
+  var url = gistId ? 'https://api.github.com/gists/' + gistId : 'https://api.github.com/gists';
+  var method = gistId ? 'PATCH' : 'POST';
+  toast('正在上传...', 'info');
+  fetch(url, {
+    method: method,
+    headers: {
+      'Authorization': 'token ' + gistToken,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  }).then(function(res) {
+    if (!res.ok) throw new Error('Upload failed');
+    return res.json();
+  }).then(function(result) {
+    if (!gistId) {
+      gistId = result.id;
+      localStorage.setItem('cost_gist_id', gistId);
+    }
+    toast('上传成功！', 'success');
+  }).catch(function(err) {
+    toast('上传失败：' + err.message, 'error');
+  });
+}
+
+function syncFromCloud() {
+  if (!gistToken) { toast('请先配置 Token', 'error'); return; }
+  if (!gistId) { toast('请先上传数据到云端', 'error'); return; }
+  toast('正在下载...', 'info');
+  fetch('https://api.github.com/gists/' + gistId, {
+    headers: {
+      'Authorization': 'token ' + gistToken
+    }
+  }).then(function(res) {
+    if (!res.ok) throw new Error('Download failed');
+    return res.json();
+  }).then(function(result) {
+    var content = result.files['cost-app-data.json'].content;
+    var imported = JSON.parse(content);
+    if (imported.shipping) {
+      if (imported.shipping.pickups) data.pickups = imported.shipping.pickups;
+      if (imported.shipping.pickupBatches) data.pickupBatches = imported.shipping.pickupBatches;
+      if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipping.shipExpenses;
+      saveData();
+    }
+    if (imported.procurement) {
+      procData = imported.procurement;
+      saveProcData();
+    }
+    toast('下载成功！', 'success');
+    render();
+  }).catch(function(err) {
+    toast('下载失败：' + err.message, 'error');
+  });
+}
+
 // ===== 管理端 =====
 function renderManagement() {
   // 统计数据
@@ -467,6 +589,9 @@ function renderManagement() {
     '<div class="stat-card"><div class="num" style="color:#f59e0b">' + totalPickups + '</div><div class="label">提货记录</div></div>' +
     '<div class="stat-card"><div class="num" style="color:#10b981">' + totalPickupBatches + '</div><div class="label">提货批次</div></div>';
 
+  // 云端同步
+  renderCloudSync();
+
   // 数据统计
   document.getElementById('dataStats').innerHTML =
     '<div style="display:grid;gap:12px">' +
@@ -479,7 +604,7 @@ function renderManagement() {
       '<button class="btn btn-sm btn-outline" onclick="exportAllData()" style="width:100%">📤 导出所有数据</button>' +
       '<button class="btn btn-sm btn-outline" onclick="importData()" style="width:100%">📥 导入数据</button>' +
       '<button class="btn btn-sm btn-danger" onclick="clearAllData()" style="width:100%">🗑️ 清空所有数据</button>' +
-      '<div style="font-size:11px;color:var(--text-secondary);text-align:center;margin-top:8px">批次成本管理 v2.0</div>' +
+      '<div style="font-size:11px;color:var(--text-secondary);text-align:center;margin-top:8px">批次成本管理 v2.1</div>' +
     '</div>';
 }
 
