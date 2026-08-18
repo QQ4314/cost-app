@@ -34,28 +34,18 @@ function switchTab(tab) {
   render();
 }
 
-// ===== 搜索 =====
-var _st;
-function onSearch() { clearTimeout(_st); _st = setTimeout(function() { render(); }, 300); }
-
 // ===== 渲染入口 =====
 function render() {
-  var kw = document.getElementById('searchInput').value.trim().toLowerCase();
-  var filteredProc = procData.records;
-  if (kw) filteredProc = filteredProc.filter(function(p) { return (p.supplier||'').toLowerCase().includes(kw) || (p.material||'').toLowerCase().includes(kw) || (p.batchCode||'').toLowerCase().includes(kw); });
-
-  renderProcurement(filteredProc);
+  renderProcurement(procData.records);
   renderShipping();
   renderManagement();
-  updatePagination(filteredProc.length);
+  updatePagination(procData.records.length);
 }
 
 function updatePagination(total) {
   var pages = Math.max(1, Math.ceil(total / 50));
   document.getElementById('pageInfo').textContent = '共 ' + total + ' 条';
 }
-
-function kw() { return document.getElementById('searchInput').value.trim(); }
 
 // ===== 运输端 =====
 function renderShipping() {
@@ -82,7 +72,7 @@ function renderShipping() {
   }
 
   if (!shipItems.length) {
-    html = '<div class="empty-state"><div class="icon">🚚</div><p>' + (kw() ? '没有匹配的记录' : '暂无运输费用') + '</p></div>';
+    html = '<div class="empty-state"><div class="icon">🚚</div><p>暂无运输费用</p></div>';
   }
 
   document.getElementById('shipList').innerHTML = html;
@@ -139,7 +129,7 @@ function renderProcurement(list) {
     '<div class="stat-card"><div class="num" style="color:#f59e0b">' + pendingCount + '</div><div class="label">待审批</div></div>';
 
   if (list.length === 0) {
-    document.getElementById('procList').innerHTML = '<div class="empty-state"><div class="icon">🛒</div><p>' + (kw() ? '没有匹配的记录' : '暂无采购记录') + '</p></div>';
+    document.getElementById('procList').innerHTML = '<div class="empty-state"><div class="icon">🛒</div><p>暂无采购记录</p></div>';
     return;
   }
 
