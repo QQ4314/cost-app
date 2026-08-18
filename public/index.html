@@ -56,7 +56,7 @@
       <div id="procList"></div>
       <div style="display:flex;gap:8px;justify-content:center;margin:16px 0">
         <button class="btn btn-sm btn-primary" onclick="openProcAdd()" style="width:auto;padding:10px 24px;background:#8b5cf6">➕ 新增采购</button>
-        <button class="btn btn-sm btn-outline" onclick="exportProcCSV()" style="width:auto;padding:10px 24px">📤 导出CSV</button>
+        <button class="btn btn-sm btn-outline" onclick="exportProcCSV()" style="width:auto;padding:10px 24px">📤 导出Excel</button>
       </div>
     </div>
 
@@ -138,6 +138,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script src="js/app.js?v=4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="js/app.js?v=5"></script>
 </body>
 </html>
