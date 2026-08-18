@@ -232,14 +232,24 @@ function deleteProcurement(id) {
 
 function exportProcCSV() {
   if (procData.records.length === 0) { toast('没有数据可导出', 'error'); return; }
-  var h = ['批次号','下单日期','品牌','品名','下单数量','产出数量','原料价格','包材价格','工费','录入时间'];
-  var rows = [h.map(function(c) { return '"' + c + '"'; }).join(',')];
-  procData.records.forEach(function(p) {
-    rows.push([p.batchNo||'',p.date||'',p.brand||'',p.productName||'',p.orderQty||'0',p.outputQty||'0',p.materialPrice||'0',p.packagingPrice||'0',p.laborCost||'0',p.created_at||''].map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(','));
+  var data = procData.records.map(function(p) {
+    return {
+      '批次号': p.batchNo || '',
+      '下单日期': p.date || '',
+      '品牌': p.brand || '',
+      '品名': p.productName || '',
+      '下单数量': Number(p.orderQty) || 0,
+      '产出数量': Number(p.outputQty) || 0,
+      '原料价格': Number(p.materialPrice) || 0,
+      '包材价格': Number(p.packagingPrice) || 0,
+      '工费': Number(p.laborCost) || 0,
+      '录入时间': p.created_at || ''
+    };
   });
-  var csv = '﻿' + rows.join('\n');
-  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'}), url = URL.createObjectURL(blob), a = document.createElement('a');
-  a.href = url; a.download = '采购记录_' + new Date().toISOString().slice(0,10) + '.csv'; a.click(); URL.revokeObjectURL(url);
+  var ws = XLSX.utils.json_to_sheet(data);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '采购记录');
+  XLSX.writeFile(wb, '采购记录_' + new Date().toISOString().slice(0,10) + '.xlsx');
   toast('导出成功 ' + procData.records.length + ' 条', 'success');
 }
 
