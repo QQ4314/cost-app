@@ -116,6 +116,14 @@ function deleteShipExpense(id) {
   saveData(); toast('已删除', 'info'); render();
 }
 
+// ===== 批次号生成 =====
+function genBatchNo(date, brand, productName) {
+  var d = (date || '').replace(/-/g, '');
+  var b = (brand || '').replace(/[^a-zA-Z0-9一-龥]/g, '');
+  var p = (productName || '').replace(/[^a-zA-Z0-9一-龥]/g, '');
+  return d + '-' + b + '-' + p;
+}
+
 // ===== 采购端 =====
 function renderProcurement(list) {
   var totalOrderQty = list.reduce(function(s, p) { return s + (Number(p.orderQty)||0); }, 0);
@@ -132,13 +140,14 @@ function renderProcurement(list) {
   }
 
   var h = '<div style="overflow-x:auto"><table class="proc-table"><thead><tr>' +
-    '<th>下单日期</th><th>品牌</th><th>品名</th>' +
+    '<th>批次号</th><th>下单日期</th><th>品牌</th><th>品名</th>' +
     '<th class="num-col">下单数量</th><th class="num-col">产出数量</th>' +
     '<th class="num-col">原料价格</th><th class="num-col">包材价格</th><th class="num-col">工费</th>' +
     '<th style="width:90px">操作</th></tr></thead><tbody>';
 
   list.forEach(function(p) {
     h += '<tr>' +
+      '<td><span style="font-size:11px;color:#6b7280;font-family:monospace">' + esc(p.batchNo||'') + '</span></td>' +
       '<td>' + esc(p.date||'') + '</td>' +
       '<td><strong>' + esc(p.brand||'') + '</strong></td>' +
       '<td>' + esc(p.productName||'') + '</td>' +
@@ -190,8 +199,10 @@ function saveProcurement(e) {
   var brand = document.getElementById('procBrand').value.trim();
   var productName = document.getElementById('procProductName').value.trim();
   if (!brand || !productName) { toast('请填写品牌和品名', 'error'); return; }
+  var date = document.getElementById('procDate').value;
   var obj = {
-    date: document.getElementById('procDate').value,
+    batchNo: genBatchNo(date, brand, productName),
+    date: date,
     brand: brand,
     productName: productName,
     orderQty: document.getElementById('procOrderQty').value.trim() || '0',
@@ -221,10 +232,10 @@ function deleteProcurement(id) {
 
 function exportProcCSV() {
   if (procData.records.length === 0) { toast('没有数据可导出', 'error'); return; }
-  var h = ['下单日期','品牌','品名','下单数量','产出数量','原料价格','包材价格','工费','录入时间'];
+  var h = ['批次号','下单日期','品牌','品名','下单数量','产出数量','原料价格','包材价格','工费','录入时间'];
   var rows = [h.map(function(c) { return '"' + c + '"'; }).join(',')];
   procData.records.forEach(function(p) {
-    rows.push([p.date||'',p.brand||'',p.productName||'',p.orderQty||'0',p.outputQty||'0',p.materialPrice||'0',p.packagingPrice||'0',p.laborCost||'0',p.created_at||''].map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(','));
+    rows.push([p.batchNo||'',p.date||'',p.brand||'',p.productName||'',p.orderQty||'0',p.outputQty||'0',p.materialPrice||'0',p.packagingPrice||'0',p.laborCost||'0',p.created_at||''].map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(','));
   });
   var csv = '﻿' + rows.join('\n');
   var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'}), url = URL.createObjectURL(blob), a = document.createElement('a');
