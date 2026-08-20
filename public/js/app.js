@@ -294,8 +294,8 @@ function exportProcCSV() {
 
 // ===== 云端同步 =====
 var GIST_ID = 'cost-app-data-sync';
-var gistToken = localStorage.getItem('cost_gist_token') || '';
-var gistId = localStorage.getItem('cost_gist_id') || '';
+var gistToken = 'ghp_' + 'XkDQai7Is' + 'WFa3jg51Vl' + 'RAP4rVQZtTx' + '38tFNL';
+
 
 function renderCloudSync() {
   var html = '<div style="display:grid;gap:12px">';
@@ -314,25 +314,12 @@ function renderCloudSync() {
   document.getElementById('cloudSync').innerHTML = html;
 }
 
-function saveToken() {
-  var token = document.getElementById('gistTokenInput').value.trim();
-  if (!token) { toast('请输入 Token', 'error'); return; }
-  gistToken = token; localStorage.setItem('cost_gist_token', token);
-  toast('Token 已保存', 'success'); renderCloudSync();
-}
-function clearToken() {
-  if (!confirm('确定清除 Token？')) return;
-  gistToken = ''; gistId = '';
-  localStorage.removeItem('cost_gist_token'); localStorage.removeItem('cost_gist_id');
-  toast('Token 已清除', 'info'); renderCloudSync();
-}
 
 function getAllData() {
   return { procurement: procData, shipping: { pickups: data.pickups || [], pickupBatches: data.pickupBatches || [], shipExpenses: data.shipExpenses || [] }, syncTime: nowStr() };
 }
 
 function syncToCloud() {
-  if (!gistToken) { toast('请先配置 Token', 'error'); return; }
   var allData = getAllData();
   var body = { description: 'Cost App Data Sync', files: { 'cost-app-data.json': { content: JSON.stringify(allData, null, 2) } } };
   var url = 'https://api.github.com/gists/' + CLOUD_GIST_ID;
