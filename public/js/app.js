@@ -423,25 +423,25 @@ loadData();
 loadProcData();
 render();
 
+// 云端同步配置（公开 Gist，所有人可读取）
+var CLOUD_GIST_ID = 'bd97d0d8d75b9ab77ccd7f1e6262c699';
+
 // 页面加载后自动从云端同步（以云端为准）
-if (gistToken && gistId) {
-  fetch('https://api.github.com/gists/' + gistId, {
-    headers: { 'Authorization': 'token ' + gistToken }
-  }).then(function(res) {
-    if (!res.ok) throw new Error('sync failed');
-    return res.json();
-  }).then(function(result) {
-    var content = result.files['cost-app-data.json'].content;
-    var imported = JSON.parse(content);
-    if (imported.shipping) {
-      if (imported.shipping.pickups) data.pickups = imported.shipping.pickups;
-      if (imported.shipping.pickupBatches) data.pickupBatches = imported.shipping.pickupBatches;
-      if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipping.shipExpenses;
-      saveData();
-    }
-    if (imported.procurement) { procData = imported.procurement; saveProcData(); }
-    render();
-  }).catch(function() {
-    // 同步失败静默处理，使用本地数据
-  });
-}
+fetch('https://api.github.com/gists/' + CLOUD_GIST_ID).then(function(res) {
+  if (!res.ok) throw new Error('sync failed');
+  return res.json();
+}).then(function(result) {
+  var content = result.files['cost-app-data.json'].content;
+  var imported = JSON.parse(content);
+  if (imported.shipping) {
+    if (imported.shipping.pickups) data.pickups = imported.shipping.pickups;
+    if (imported.shipping.pickupBatches) data.pickupBatches = imported.shipping.pickupBatches;
+    if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipping.shipExpenses;
+    saveData();
+  }
+  if (imported.procurement) { procData = imported.procurement; saveProcData(); }
+  render();
+}).catch(function() {
+  // sync failed silently, use local data
+});
+
