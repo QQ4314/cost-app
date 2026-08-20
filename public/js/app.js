@@ -1,6 +1,7 @@
 // ===== 数据层 =====
 let data = { batches: [], nextId: 1, pickups: [], shipExpenses: [] };
 let procData = { records: [], nextId: 1 };
+var _isSyncing = false; // 标记是否正在从云端同步
 
 // 检测当前页面
 function getCurrentPage() {
@@ -17,13 +18,26 @@ function loadData() {
   if (!data.batches) data.batches = [];
   if (!data.nextId) data.nextId = 1;
 }
-function saveData() { localStorage.setItem('cost_batch_data', JSON.stringify(data)); }
+function saveData() { localStorage.setItem('cost_batch_data', JSON.stringify(data)); autoUploadToCloud(); }
 function loadProcData() {
   try { const r = localStorage.getItem('cost_proc_data'); if (r) procData = JSON.parse(r); } catch(e) {}
   if (!procData.records) procData.records = [];
   if (!procData.nextId) procData.nextId = 1;
 }
-function saveProcData() { localStorage.setItem('cost_proc_data', JSON.stringify(procData)); }
+function saveProcData() { localStorage.setItem('cost_proc_data', JSON.stringify(procData)); autoUploadToCloud(); }
+
+// 自动上传到云端（防抖，避免频繁请求）
+var _uploadTimer = null;
+function autoUploadToCloud() {
+  if (_isSyncing) return; // 正在同步时不触发上传
+  clearTimeout(_uploadTimer);
+  _uploadTimer = setTimeout(function() {
+    var gistToken = 'ghp_' + 'XkDQai7Is' + 'WFa3jg51Vl' + 'RAP4rVQZtTx' + '38tFNL';
+    var allData = { procurement: procData, shipping: { pickups: data.pickups || [], shipExpenses: data.shipExpenses || [] } };
+    var body = { files: { 'cost-app-data.json': { content: JSON.stringify(allData) } } };
+    fetch('https://api.github.com/gists/' + CLOUD_GIST_ID, { method: 'PATCH', headers: { 'Authorization': 'token ' + gistToken, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(function() {});
+  }, 2000); // 2秒防抖
+}
 function nowStr() {
   var d = new Date(); function p(n) { return n < 10 ? '0' + n : '' + n; }
   return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
@@ -70,7 +84,7 @@ function renderShipping() {
   if (pickups.length > 0) {
     html += '<h4 style="margin:16px 0 8px;color:var(--text)">🚚 提货记录</h4>';
     html += pickups.slice().reverse().map(function(p) {
-      return '<div class="batch-card" style="cursor:default;padding:10px">' + '<div style="display:flex;justify-content:space-between;align-items:center">' + '<div><div style="font-weight:600;font-size:13px;font-family:monospace">' + esc(p.pickupNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.batchNo) + ' | ' + esc(p.brand||'') + ' ' + esc(p.productName||'') + '</div></div>' + '<div style="text-align:right"><div style="font-size:14px;font-weight:600">' + p.qty + '件</div>' + '<button class="btn btn-xs btn-danger" onclick="deletePickup(\'' + esc(p.pickupNo) + '\')" style="font-size:10px;padding:2px 8px;margin-top:4px">删除</button></div>' + '</div></div>';
+      return '<div class="batch-card" style="cursor:default;padding:10px">' + '<div style="display:flex;justify-content:space-between;align-items:center">' + '<div><div style="font-weight:600;font-size:13px;font-family:monospace">' + esc(p.pickupNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.batchNo) + ' | ' + esc(p.brand||'') + ' ' + esc(p.productName||'') + '</div></div>' + '<div style="text-align:right"><div style="font-size:14px;font-weight:600">' + p.qty + '件</div>' + '<button class="btn btn-xs btn-danger" onclick="deletePickup('' + esc(p.pickupNo) + '')" style="font-size:10px;padding:2px 8px;margin-top:4px">删除</button></div>' + '</div></div>';
     }).join('');
   }
   if (!pickups.length) { html = '<div class="empty-state"><div class="icon">🚚</div><p>暂无提货记录</p></div>'; }
@@ -93,7 +107,7 @@ function searchBatch(keyword) {
   var matched = procData.records.filter(function(p) { return (p.batchNo||'').toLowerCase().indexOf(kw) >= 0 || (p.brand||'').toLowerCase().indexOf(kw) >= 0 || (p.productName||'').toLowerCase().indexOf(kw) >= 0; });
   if (matched.length === 0) { results.style.display = 'none'; return; }
   results.style.display = 'block';
-  results.innerHTML = matched.map(function(p) { return '<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border)" onclick="selectBatch(\'' + esc(p.batchNo) + '\')">' + '<div style="font-weight:600;font-size:13px">' + esc(p.batchNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.brand||'') + ' | ' + esc(p.productName||'') + '</div></div>'; }).join('');
+  results.innerHTML = matched.map(function(p) { return '<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border)" onclick="selectBatch('' + esc(p.batchNo) + '')">' + '<div style="font-weight:600;font-size:13px">' + esc(p.batchNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.brand||'') + ' | ' + esc(p.productName||'') + '</div></div>'; }).join('');
 }
 function selectBatch(batchNo) {
   var p = procData.records.find(function(x) { return x.batchNo === batchNo; });
@@ -291,7 +305,7 @@ function importData() {
         var imported = JSON.parse(ev.target.result);
         if (imported.shipping) {
           if (imported.shipping.pickups) data.pickups = imported.shipping.pickups;
-          if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipExpenses;
+          if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipping.shipExpenses;
           saveData();
         }
         if (imported.procurement) { procData = imported.procurement; saveProcData(); }
@@ -321,6 +335,7 @@ render();
 var CLOUD_GIST_ID = 'bd97d0d8d75b9ab77ccd7f1e6262c699';
 
 // 页面加载后自动从云端同步（以云端为准）
+_isSyncing = true;
 fetch('https://api.github.com/gists/' + CLOUD_GIST_ID).then(function(res) {
   if (!res.ok) throw new Error('sync failed');
   return res.json();
@@ -330,10 +345,12 @@ fetch('https://api.github.com/gists/' + CLOUD_GIST_ID).then(function(res) {
   if (imported.shipping) {
     if (imported.shipping.pickups) data.pickups = imported.shipping.pickups;
     if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipping.shipExpenses;
-    saveData();
+    localStorage.setItem('cost_batch_data', JSON.stringify(data));
   }
-  if (imported.procurement) { procData = imported.procurement; saveProcData(); }
+  if (imported.procurement) { procData = imported.procurement; localStorage.setItem('cost_proc_data', JSON.stringify(procData)); }
+  _isSyncing = false;
   render();
 }).catch(function() {
+  _isSyncing = false;
   // 同步失败静默处理，使用本地数据
 });
