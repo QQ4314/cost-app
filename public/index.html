@@ -28,16 +28,22 @@
   </style>
 </head>
 <body>
+
   <div class="header">
     <h1>📦 批次成本管理</h1>
     <p>录入生产批次信息，自动核算单位成本</p>
   </div>
+
   <div class="container-wide" id="app">
+
+    <!-- Tab 栏 -->
     <div class="nav-tabs">
       <button class="nav-tab active" onclick="switchTab('procurement')" id="tabProcurement">🛒 采购端</button>
       <button class="nav-tab" onclick="switchTab('shipping')" id="tabShipping">🚚 运输端</button>
       <button class="nav-tab" onclick="switchTab('management')" id="tabManagement">⚙️ 管理端</button>
     </div>
+
+    <!-- 采购端 -->
     <div id="procSection">
       <div class="stats-bar" id="procStats"></div>
       <div id="procList"></div>
@@ -51,6 +57,8 @@
         <button class="page-btn" id="nextPage" onclick="changePage(1)">下一页 →</button>
       </div>
     </div>
+
+    <!-- 运输端 -->
     <div id="shipSection" style="display:none">
       <div class="stats-bar" id="shipStats"></div>
       <div id="shipList"></div>
@@ -59,6 +67,8 @@
         <button class="btn btn-sm btn-primary" onclick="openShipExpenseModal()" style="width:auto;padding:10px 20px;background:#6366f1">💰 新增费用</button>
       </div>
     </div>
+
+    <!-- 管理端 -->
     <div id="mgmtSection" style="display:none">
       <div class="stats-bar" id="mgmtStats"></div>
       <div class="mgmt-grid">
@@ -77,6 +87,8 @@
       </div>
       <div class="version-info">批次成本管理 v2.5</div>
     </div>
+
+    <!-- 采购端弹窗 -->
     <div id="procModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeProcModal()">
       <div class="modal-content" style="max-width:600px">
         <button class="modal-close" onclick="closeProcModal()">✕</button>
@@ -103,6 +115,8 @@
         </form>
       </div>
     </div>
+
+    <!-- 运输端弹窗 - 提货 -->
     <div id="pickupModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closePickupModal()">
       <div class="modal-content" style="max-width:500px">
         <button class="modal-close" onclick="closePickupModal()">✕</button>
@@ -126,6 +140,8 @@
         </form>
       </div>
     </div>
+
+    <!-- 运输端弹窗 - 费用 -->
     <div id="shipExpenseModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeShipExpenseModal()">
       <div class="modal-content" style="max-width:500px">
         <button class="modal-close" onclick="closeShipExpenseModal()">✕</button>
@@ -144,8 +160,9 @@
       </div>
     </div>
   </div>
+
   <div id="toast" class="toast"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/app.js?v=15"></script>
+  <script src="js/app.js?v=16"></script>
 </body>
 </html>
