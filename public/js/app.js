@@ -3,15 +3,21 @@ let data = { batches: [], nextId: 1, pickups: [], shipExpenses: [] };
 let procData = { records: [], nextId: 1 };
 var _isSyncing = false; // 标记是否正在从云端同步
 
-// 检测当前页面
-function getCurrentPage() {
-  var path = window.location.pathname;
-  if (path.indexOf('shipping') >= 0) return 'shipping';
-  if (path.indexOf('management') >= 0) return 'management';
-  return 'procurement';
-}
+// 当前 Tab
+var currentTab = 'procurement';
 
-var currentPage = getCurrentPage();
+function switchTab(tab) {
+  currentTab = tab;
+  // 切换 Tab 高亮
+  document.getElementById('tabProcurement').className = 'nav-tab' + (tab === 'procurement' ? ' active' : '');
+  document.getElementById('tabShipping').className = 'nav-tab' + (tab === 'shipping' ? ' active' : '');
+  document.getElementById('tabManagement').className = 'nav-tab' + (tab === 'management' ? ' active' : '');
+  // 切换内容区域
+  document.getElementById('procSection').style.display = tab === 'procurement' ? '' : 'none';
+  document.getElementById('shipSection').style.display = tab === 'shipping' ? '' : 'none';
+  document.getElementById('mgmtSection').style.display = tab === 'management' ? '' : 'none';
+  render();
+}
 
 function loadData() {
   try { const r = localStorage.getItem('cost_batch_data'); if (r) data = JSON.parse(r); } catch(e) {}
@@ -56,12 +62,12 @@ function esc(s) { return String(s==null?'':s).replace(/[&<>]/g, function(m) { re
 
 // ===== 渲染入口 =====
 function render() {
-  if (currentPage === 'procurement') {
+  if (currentTab === 'procurement') {
     renderProcurement(procData.records);
     updatePagination(procData.records.length);
-  } else if (currentPage === 'shipping') {
+  } else if (currentTab === 'shipping') {
     renderShipping();
-  } else if (currentPage === 'management') {
+  } else if (currentTab === 'management') {
     renderManagement();
   }
 }
@@ -84,7 +90,7 @@ function renderShipping() {
   if (pickups.length > 0) {
     html += '<h4 style="margin:16px 0 8px;color:var(--text)">🚚 提货记录</h4>';
     html += pickups.slice().reverse().map(function(p) {
-      return '<div class="batch-card" style="cursor:default;padding:10px">' + '<div style="display:flex;justify-content:space-between;align-items:center">' + '<div><div style="font-weight:600;font-size:13px;font-family:monospace">' + esc(p.pickupNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.batchNo) + ' | ' + esc(p.brand||'') + ' ' + esc(p.productName||'') + '</div></div>' + '<div style="text-align:right"><div style="font-size:14px;font-weight:600">' + p.qty + '件</div>' + '<button class="btn btn-xs btn-danger" onclick="deletePickup('' + esc(p.pickupNo) + '')" style="font-size:10px;padding:2px 8px;margin-top:4px">删除</button></div>' + '</div></div>';
+      return '<div class="batch-card" style="cursor:default;padding:10px">' + '<div style="display:flex;justify-content:space-between;align-items:center">' + '<div><div style="font-weight:600;font-size:13px;font-family:monospace">' + esc(p.pickupNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.batchNo) + ' | ' + esc(p.brand||'') + ' ' + esc(p.productName||'') + '</div></div>' + '<div style="text-align:right"><div style="font-size:14px;font-weight:600">' + p.qty + '件</div>' + '<button class="btn btn-xs btn-danger" onclick="deletePickup(\'' + esc(p.pickupNo) + '\')" style="font-size:10px;padding:2px 8px;margin-top:4px">删除</button></div>' + '</div></div>';
     }).join('');
   }
   if (!pickups.length) { html = '<div class="empty-state"><div class="icon">🚚</div><p>暂无提货记录</p></div>'; }
@@ -107,7 +113,7 @@ function searchBatch(keyword) {
   var matched = procData.records.filter(function(p) { return (p.batchNo||'').toLowerCase().indexOf(kw) >= 0 || (p.brand||'').toLowerCase().indexOf(kw) >= 0 || (p.productName||'').toLowerCase().indexOf(kw) >= 0; });
   if (matched.length === 0) { results.style.display = 'none'; return; }
   results.style.display = 'block';
-  results.innerHTML = matched.map(function(p) { return '<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border)" onclick="selectBatch('' + esc(p.batchNo) + '')">' + '<div style="font-weight:600;font-size:13px">' + esc(p.batchNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.brand||'') + ' | ' + esc(p.productName||'') + '</div></div>'; }).join('');
+  results.innerHTML = matched.map(function(p) { return '<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border)" onclick="selectBatch(\'' + esc(p.batchNo) + '\')">' + '<div style="font-weight:600;font-size:13px">' + esc(p.batchNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.brand||'') + ' | ' + esc(p.productName||'') + '</div></div>'; }).join('');
 }
 function selectBatch(batchNo) {
   var p = procData.records.find(function(x) { return x.batchNo === batchNo; });
@@ -267,7 +273,7 @@ function syncFromCloud() {
     var imported = JSON.parse(content);
     if (imported.shipping) {
       if (imported.shipping.pickups) data.pickups = imported.shipping.pickups;
-      if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipping.shipExpenses;
+      if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipExpenses;
       saveData();
     }
     if (imported.procurement) { procData = imported.procurement; saveProcData(); }
@@ -305,7 +311,7 @@ function importData() {
         var imported = JSON.parse(ev.target.result);
         if (imported.shipping) {
           if (imported.shipping.pickups) data.pickups = imported.shipping.pickups;
-          if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipping.shipExpenses;
+          if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipExpenses;
           saveData();
         }
         if (imported.procurement) { procData = imported.procurement; saveProcData(); }
@@ -344,7 +350,7 @@ fetch('https://api.github.com/gists/' + CLOUD_GIST_ID).then(function(res) {
   var imported = JSON.parse(content);
   if (imported.shipping) {
     if (imported.shipping.pickups) data.pickups = imported.shipping.pickups;
-    if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipping.shipExpenses;
+    if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipExpenses;
     localStorage.setItem('cost_batch_data', JSON.stringify(data));
   }
   if (imported.procurement) { procData = imported.procurement; localStorage.setItem('cost_proc_data', JSON.stringify(procData)); }
