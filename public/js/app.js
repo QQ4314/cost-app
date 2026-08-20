@@ -90,7 +90,7 @@ function renderShipping() {
   if (pickups.length > 0) {
     html += '<h4 style="margin:16px 0 8px;color:var(--text)">🚚 提货记录</h4>';
     html += pickups.slice().reverse().map(function(p) {
-      return '<div class="batch-card" style="cursor:default;padding:10px">' + '<div style="display:flex;justify-content:space-between;align-items:center">' + '<div><div style="font-weight:600;font-size:13px;font-family:monospace">' + esc(p.pickupNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.batchNo) + ' | ' + esc(p.brand||'') + ' ' + esc(p.productName||'') + '</div></div>' + '<div style="text-align:right"><div style="font-size:14px;font-weight:600">' + p.qty + '件</div>' + '<button class="btn btn-xs btn-danger" onclick="deletePickup(\'' + esc(p.pickupNo) + '\')" style="font-size:10px;padding:2px 8px;margin-top:4px">删除</button></div>' + '</div></div>';
+      return '<div class="batch-card" style="cursor:default;padding:10px">' + '<div style="display:flex;justify-content:space-between;align-items:center">' + '<div><div style="font-weight:600;font-size:13px;font-family:monospace">' + esc(p.pickupNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.batchNo) + ' | ' + esc(p.brand||'') + ' ' + esc(p.productName||'') + (p.volume ? ' | 体积:' + p.volume + 'm³' : '') + (p.weight ? ' | 重量:' + p.weight + 'kg' : '') + '</div></div>' + '<div style="text-align:right"><div style="font-size:14px;font-weight:600">' + p.qty + '件</div>' + '<button class="btn btn-xs btn-danger" onclick="deletePickup(\'' + esc(p.pickupNo) + '\')" style="font-size:10px;padding:2px 8px;margin-top:4px">删除</button></div>' + '</div></div>';
     }).join('');
   }
   if (!pickups.length) { html = '<div class="empty-state"><div class="icon">🚚</div><p>暂无提货记录</p></div>'; }
@@ -100,7 +100,7 @@ function renderShipping() {
 // ===== 新增提货 =====
 function openPickupModal() {
   document.getElementById('pickupBatchSearch').value = ''; document.getElementById('pickupBatchNo').value = '';
-  document.getElementById('pickupQty').value = ''; document.getElementById('pickupNo').value = '';
+  document.getElementById('pickupQty').value = ''; document.getElementById('pickupVolume').value = ''; document.getElementById('pickupWeight').value = ''; document.getElementById('pickupNo').value = '';
   document.getElementById('selectedBatchInfo').style.display = 'none';
   document.getElementById('batchSearchResults').style.display = 'none';
   document.getElementById('pickupModal').style.display = '';
@@ -137,11 +137,13 @@ function savePickup(e) {
   var qty = parseInt(document.getElementById('pickupQty').value);
   if (!batchNo) { toast('请选择批次号', 'error'); return; }
   if (!qty || qty <= 0) { toast('请填写提货数量', 'error'); return; }
+  var volume = document.getElementById('pickupVolume').value;
+  var weight = document.getElementById('pickupWeight').value;
   var pickupNo = batchNo + '-' + qty;
   if (!data.pickups) data.pickups = [];
   if (data.pickups.find(function(p) { return p.pickupNo === pickupNo; })) { toast('该提货号已存在', 'error'); return; }
   var proc = procData.records.find(function(p) { return p.batchNo === batchNo; });
-  data.pickups.push({ pickupNo: pickupNo, batchNo: batchNo, brand: proc ? proc.brand : '', productName: proc ? proc.productName : '', qty: qty, created_at: nowStr() });
+  data.pickups.push({ pickupNo: pickupNo, batchNo: batchNo, brand: proc ? proc.brand : '', productName: proc ? proc.productName : '', qty: qty, volume: volume || '', weight: weight || '', created_at: nowStr() });
   saveData(); closePickupModal(); render(); toast('提货记录已添加', 'success');
 }
 function deletePickup(pickupNo) {
@@ -273,7 +275,7 @@ function syncFromCloud() {
     var imported = JSON.parse(content);
     if (imported.shipping) {
       if (imported.shipping.pickups) data.pickups = imported.shipping.pickups;
-      if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipExpenses;
+      if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipping.shipExpenses;
       saveData();
     }
     if (imported.procurement) { procData = imported.procurement; saveProcData(); }
@@ -350,7 +352,7 @@ fetch('https://api.github.com/gists/' + CLOUD_GIST_ID).then(function(res) {
   var imported = JSON.parse(content);
   if (imported.shipping) {
     if (imported.shipping.pickups) data.pickups = imported.shipping.pickups;
-    if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipExpenses;
+    if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipping.shipExpenses;
     localStorage.setItem('cost_batch_data', JSON.stringify(data));
   }
   if (imported.procurement) { procData = imported.procurement; localStorage.setItem('cost_proc_data', JSON.stringify(procData)); }
