@@ -1,7 +1,16 @@
 // ===== 数据层 =====
 let data = { batches: [], nextId: 1, pickups: [], shipExpenses: [] };
 let procData = { records: [], nextId: 1 };
-let currentTab = 'procurement';
+
+// 检测当前页面
+function getCurrentPage() {
+  var path = window.location.pathname;
+  if (path.indexOf('shipping') >= 0) return 'shipping';
+  if (path.indexOf('management') >= 0) return 'management';
+  return 'procurement';
+}
+
+var currentPage = getCurrentPage();
 
 function loadData() {
   try { const r = localStorage.getItem('cost_batch_data'); if (r) data = JSON.parse(r); } catch(e) {}
@@ -31,25 +40,24 @@ function calcTotal(b) { return calcProd(b) + calcShip(b); }
 function num(v) { return (Number(v)||0).toFixed(2); }
 function esc(s) { return String(s==null?'':s).replace(/[&<>]/g, function(m) { return {'&':'&amp;','<':'&lt;','>':'&gt;'}[m]; }); }
 
-// ===== 标签切换 =====
-function switchTab(tab) {
-  currentTab = tab;
-  document.querySelectorAll('.tab').forEach(function(t) { t.classList.toggle('active', t.getAttribute('data-tab') === tab); });
-  document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.toggle('active', c.id === 'tab' + tab.charAt(0).toUpperCase() + tab.slice(1)); });
-  render();
-}
-
 // ===== 渲染入口 =====
 function render() {
-  renderProcurement(procData.records);
-  renderShipping();
-  renderManagement();
-  updatePagination(procData.records.length);
+  if (currentPage === 'procurement') {
+    renderProcurement(procData.records);
+    updatePagination(procData.records.length);
+  } else if (currentPage === 'shipping') {
+    renderShipping();
+  } else if (currentPage === 'management') {
+    renderManagement();
+  }
 }
 
 function updatePagination(total) {
-  var pages = Math.max(1, Math.ceil(total / 50));
-  document.getElementById('pageInfo').textContent = '共 ' + total + ' 条';
+  var pageInfo = document.getElementById('pageInfo');
+  if (pageInfo) {
+    var pages = Math.max(1, Math.ceil(total / 50));
+    pageInfo.textContent = '共 ' + total + ' 条';
+  }
 }
 
 // ===== 运输端 =====
@@ -262,7 +270,7 @@ function renderManagement() {
   document.getElementById('mgmtStats').innerHTML = '<div class="stat-card"><div class="num" style="color:#8b5cf6">' + totalProcRecords + '</div><div class="label">采购记录</div></div>' + '<div class="stat-card"><div class="num" style="color:#f59e0b">' + totalPickups + '</div><div class="label">提货记录</div></div>';
   renderCloudSync();
   document.getElementById('dataStats').innerHTML = '<div style="display:grid;gap:12px">' + '<div style="display:flex;justify-content:space-between;padding:8px;background:var(--bg);border-radius:8px"><span>运输总成本</span><strong style="color:#6366f1">¥' + totalShipCost.toFixed(2) + '</strong></div>' + '</div>';
-  document.getElementById('sysSettings').innerHTML = '<div style="display:grid;gap:8px">' + '<button class="btn btn-sm btn-outline" onclick="exportAllData()" style="width:100%">📤 导出所有数据</button>' + '<button class="btn btn-sm btn-outline" onclick="importData()" style="width:100%">📥 导入数据</button>' + '<button class="btn btn-sm btn-danger" onclick="clearAllData()" style="width:100%">🗑️ 清空所有数据</button>' + '<div style="font-size:11px;color:var(--text-secondary);text-align:center;margin-top:8px">批次成本管理 v2.2</div>' + '</div>';
+  document.getElementById('sysSettings').innerHTML = '<div style="display:grid;gap:8px">' + '<button class="btn btn-sm btn-outline" onclick="exportAllData()" style="width:100%">📤 导出所有数据</button>' + '<button class="btn btn-sm btn-outline" onclick="importData()" style="width:100%">📥 导入数据</button>' + '<button class="btn btn-sm btn-danger" onclick="clearAllData()" style="width:100%">🗑️ 清空所有数据</button>' + '</div>';
 }
 
 function exportAllData() {
@@ -283,7 +291,7 @@ function importData() {
         var imported = JSON.parse(ev.target.result);
         if (imported.shipping) {
           if (imported.shipping.pickups) data.pickups = imported.shipping.pickups;
-          if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipping.shipExpenses;
+          if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipExpenses;
           saveData();
         }
         if (imported.procurement) { procData = imported.procurement; saveProcData(); }
