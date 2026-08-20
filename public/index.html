@@ -129,8 +129,10 @@
             <input type="hidden" id="pickupBatchNo">
             <div id="selectedBatchInfo" style="display:none;margin-top:8px;padding:8px;background:var(--bg);border-radius:8px;font-size:13px"></div>
           </div>
-          <div class="form-row">
+          <div class="form-row form-row-3">
             <div class="form-group"><label>提货数量 <span style="color:var(--danger)">*</span></label><input type="number" class="form-control" id="pickupQty" step="1" required placeholder="0" oninput="updatePickupNo()"></div>
+            <div class="form-group"><label>体积(m³)</label><input type="number" class="form-control" id="pickupVolume" step="0.01" placeholder="0.00"></div>
+            <div class="form-group"><label>重量(kg)</label><input type="number" class="form-control" id="pickupWeight" step="0.01" placeholder="0.00"></div>
           </div>
           <div class="form-group">
             <label>提货号（自动生成）</label>
@@ -163,6 +165,6 @@
 
   <div id="toast" class="toast"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/app.js?v=16"></script>
+  <script src="js/app.js?v=17"></script>
 </body>
 </html>
