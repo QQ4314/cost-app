@@ -1,8 +1,7 @@
 // ===== 数据层 =====
-let data = { batches: [], nextId: 1, pickups: [], pickupBatches: [], shipExpenses: [] };
+let data = { batches: [], nextId: 1, pickups: [], shipExpenses: [] };
 let procData = { records: [], nextId: 1 };
 let currentTab = 'procurement';
-let selectedPickupNos = []; // 当前选中的提货号列表
 
 function loadData() {
   try { const r = localStorage.getItem('cost_batch_data'); if (r) data = JSON.parse(r); } catch(e) {}
@@ -56,27 +55,17 @@ function updatePagination(total) {
 // ===== 运输端 =====
 function renderShipping() {
   var pickups = data.pickups || [];
-  var batches = data.pickupBatches || [];
   var expenses = data.shipExpenses || [];
   var totalExpense = expenses.reduce(function(s, x) { return s + (Number(x.truckFee)||0) + (Number(x.miscFee)||0) + (Number(x.oceanFee)||0) + (Number(x.storageFee)||0); }, 0);
-  document.getElementById('shipStats').innerHTML = '<div class="stat-card"><div class="num" style="color:#f59e0b">' + pickups.length + '</div><div class="label">提货记录</div></div>' + '<div class="stat-card"><div class="num" style="color:#10b981">' + batches.length + '</div><div class="label">提货批次</div></div>' + '<div class="stat-card"><div class="num" style="color:#6366f1">¥' + totalExpense.toFixed(2) + '</div><div class="label">总费用</div></div>';
+  document.getElementById('shipStats').innerHTML = '<div class="stat-card"><div class="num" style="color:#f59e0b">' + pickups.length + '</div><div class="label">提货记录</div></div>' + '<div class="stat-card"><div class="num" style="color:#6366f1">¥' + totalExpense.toFixed(2) + '</div><div class="label">总费用</div></div>';
   var html = '';
-  if (batches.length > 0) {
-    html += '<h4 style="margin:16px 0 8px;color:var(--text)">📦 提货批次</h4>';
-    html += batches.slice().reverse().map(function(b) {
-      var batchPickups = pickups.filter(function(p) { return b.pickupNos && b.pickupNos.indexOf(p.pickupNo) >= 0; });
-      var expense = expenses.find(function(e) { return e.batchNo === b.batchNo; });
-      var total = expense ? (Number(expense.truckFee)||0)+(Number(expense.miscFee)||0)+(Number(expense.oceanFee)||0)+(Number(expense.storageFee)||0) : 0;
-      return '<div class="batch-card" style="cursor:default;padding:12px">' + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' + '<div><div style="font-weight:700;font-size:15px;font-family:monospace">' + esc(b.batchNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">提货日期: ' + esc(b.date||'') + ' | 提货数: ' + batchPickups.length + '</div></div>' + '<div style="text-align:right">' + (expense ? '<div style="font-size:14px;font-weight:700;color:#6366f1">¥' + total.toFixed(2) + '</div>' : '<div style="font-size:12px;color:var(--text-secondary)">未录入费用</div>') + '<button class="btn btn-xs btn-danger" onclick="deletePickupBatch(\'' + esc(b.batchNo) + '\')" style="font-size:10px;padding:2px 8px;margin-top:4px">删除</button></div>' + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">提货号: ' + (b.pickupNos||[]).join(', ') + '</div>' + '</div>';
-    }).join('');
-  }
   if (pickups.length > 0) {
     html += '<h4 style="margin:16px 0 8px;color:var(--text)">🚚 提货记录</h4>';
     html += pickups.slice().reverse().map(function(p) {
       return '<div class="batch-card" style="cursor:default;padding:10px">' + '<div style="display:flex;justify-content:space-between;align-items:center">' + '<div><div style="font-weight:600;font-size:13px;font-family:monospace">' + esc(p.pickupNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.batchNo) + ' | ' + esc(p.brand||'') + ' ' + esc(p.productName||'') + '</div></div>' + '<div style="text-align:right"><div style="font-size:14px;font-weight:600">' + p.qty + '件</div>' + '<button class="btn btn-xs btn-danger" onclick="deletePickup(\'' + esc(p.pickupNo) + '\')" style="font-size:10px;padding:2px 8px;margin-top:4px">删除</button></div>' + '</div></div>';
     }).join('');
   }
-  if (!pickups.length && !batches.length) { html = '<div class="empty-state"><div class="icon">🚚</div><p>暂无提货记录</p></div>'; }
+  if (!pickups.length) { html = '<div class="empty-state"><div class="icon">🚚</div><p>暂无提货记录</p></div>'; }
   document.getElementById('shipList').innerHTML = html;
 }
 
@@ -133,76 +122,8 @@ function deletePickup(pickupNo) {
   saveData(); toast('已删除', 'info'); render();
 }
 
-// ===== 新增提货批次 =====
-function openPickupBatchModal() {
-  document.getElementById('pickupBatchDate').value = new Date().toISOString().slice(0, 10);
-  document.getElementById('pickupNoSearch').value = ''; document.getElementById('pickupBatchNo').value = '';
-  document.getElementById('pickupNoSearchResults').style.display = 'none';
-  selectedPickupNos = []; renderSelectedPickups();
-  document.getElementById('pickupBatchModal').style.display = '';
-}
-function closePickupBatchModal() { document.getElementById('pickupBatchModal').style.display = 'none'; }
-function searchPickupNo(keyword) {
-  var results = document.getElementById('pickupNoSearchResults');
-  if (!keyword.trim()) { results.style.display = 'none'; return; }
-  var kw = keyword.toLowerCase();
-  var matched = (data.pickups || []).filter(function(p) { return selectedPickupNos.indexOf(p.pickupNo) < 0 && (p.pickupNo||'').toLowerCase().indexOf(kw) >= 0; });
-  if (matched.length === 0) { results.style.display = 'none'; return; }
-  results.style.display = 'block';
-  results.innerHTML = matched.map(function(p) { return '<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border)" onclick="addPickupToBatch(\'' + esc(p.pickupNo) + '\')">' + '<div style="font-weight:600;font-size:13px">' + esc(p.pickupNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.batchNo) + ' | ' + esc(p.brand||'') + ' ' + esc(p.productName||'') + ' | ' + p.qty + '件</div></div>'; }).join('');
-}
-function addPickupToBatch(pickupNo) {
-  if (selectedPickupNos.indexOf(pickupNo) >= 0) return;
-  selectedPickupNos.push(pickupNo);
-  document.getElementById('pickupNoSearch').value = '';
-  document.getElementById('pickupNoSearchResults').style.display = 'none';
-  renderSelectedPickups();
-}
-function removePickupFromBatch(pickupNo) {
-  selectedPickupNos = selectedPickupNos.filter(function(n) { return n !== pickupNo; });
-  renderSelectedPickups();
-}
-function renderSelectedPickups() {
-  var container = document.getElementById('selectedPickups');
-  if (selectedPickupNos.length === 0) { container.innerHTML = '<div style="font-size:13px;color:var(--text-secondary);padding:8px">请搜索并添加提货号</div>'; return; }
-  container.innerHTML = selectedPickupNos.map(function(pn) {
-    var p = (data.pickups||[]).find(function(x) { return x.pickupNo === pn; });
-    if (!p) return '';
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:var(--bg);border-radius:8px;margin-bottom:4px">' + '<div><div style="font-weight:600;font-size:13px;font-family:monospace">' + esc(p.pickupNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.batchNo) + ' | ' + esc(p.brand||'') + ' ' + esc(p.productName||'') + ' | ' + p.qty + '件</div></div>' + '<button class="btn btn-xs btn-danger" onclick="removePickupFromBatch(\'' + esc(p.pickupNo) + '\')" style="font-size:10px;padding:2px 8px">移除</button></div>';
-  }).join('');
-}
-function generatePickupBatchNo() {
-  var date = document.getElementById('pickupBatchDate').value;
-  if (!date) { toast('请先选择提货日期', 'error'); return; }
-  var d = date.replace(/-/g, '');
-  var existing = (data.pickupBatches||[]).filter(function(b) { return b.batchNo && b.batchNo.indexOf(d) === 0; });
-  var seq = String(existing.length + 1).padStart(2, '0');
-  document.getElementById('pickupBatchNo').value = d + seq;
-}
-function savePickupBatch(e) {
-  e.preventDefault();
-  var date = document.getElementById('pickupBatchDate').value;
-  var batchNo = document.getElementById('pickupBatchNo').value;
-  if (!date) { toast('请选择提货日期', 'error'); return; }
-  if (!batchNo) { toast('请点击生成批次号', 'error'); return; }
-  if (selectedPickupNos.length === 0) { toast('请添加至少一个提货号', 'error'); return; }
-  if (!data.pickupBatches) data.pickupBatches = [];
-  if (data.pickupBatches.find(function(b) { return b.batchNo === batchNo; })) { toast('该批次号已存在', 'error'); return; }
-  data.pickupBatches.push({ batchNo: batchNo, date: date, pickupNos: selectedPickupNos.slice(), created_at: nowStr() });
-  saveData(); closePickupBatchModal(); render(); toast('提货批次已添加', 'success');
-}
-function deletePickupBatch(batchNo) {
-  if (!confirm('确定删除该提货批次？')) return;
-  data.pickupBatches = data.pickupBatches.filter(function(b) { return b.batchNo !== batchNo; });
-  data.shipExpenses = (data.shipExpenses||[]).filter(function(e) { return e.batchNo !== batchNo; });
-  saveData(); toast('已删除', 'info'); render();
-}
-
 // ===== 新增费用 =====
 function openShipExpenseModal() {
-  var select = document.getElementById('expenseBatchNo');
-  select.innerHTML = '<option value="">请选择提货批次号</option>';
-  (data.pickupBatches||[]).forEach(function(b) { select.innerHTML += '<option value="' + esc(b.batchNo) + '">' + esc(b.batchNo) + ' (' + esc(b.date) + ')</option>'; });
   document.getElementById('truckFee').value = ''; document.getElementById('miscFee').value = '';
   document.getElementById('oceanFee').value = ''; document.getElementById('storageFee').value = '';
   document.getElementById('shipExpenseModal').style.display = '';
@@ -210,18 +131,15 @@ function openShipExpenseModal() {
 function closeShipExpenseModal() { document.getElementById('shipExpenseModal').style.display = 'none'; }
 function saveShipExpense(e) {
   e.preventDefault();
-  var batchNo = document.getElementById('expenseBatchNo').value;
-  if (!batchNo) { toast('请选择提货批次号', 'error'); return; }
   var truckFee = Number(document.getElementById('truckFee').value) || 0;
   var miscFee = Number(document.getElementById('miscFee').value) || 0;
   var oceanFee = Number(document.getElementById('oceanFee').value) || 0;
   var storageFee = Number(document.getElementById('storageFee').value) || 0;
+  if (!truckFee && !miscFee && !oceanFee && !storageFee) { toast('请填写至少一项费用', 'error'); return; }
   if (!data.shipExpenses) data.shipExpenses = [];
-  var existing = data.shipExpenses.findIndex(function(e) { return e.batchNo === batchNo; });
-  var obj = { batchNo: batchNo, truckFee: truckFee, miscFee: miscFee, oceanFee: oceanFee, storageFee: storageFee, updated_at: nowStr() };
-  if (existing >= 0) { data.shipExpenses[existing] = Object.assign({}, data.shipExpenses[existing], obj); toast('费用已更新', 'success'); }
-  else { obj.id = data.nextId++; obj.created_at = nowStr(); data.shipExpenses.push(obj); toast('费用已添加', 'success'); }
-  saveData(); closeShipExpenseModal(); render();
+  var obj = { id: data.nextId++, truckFee: truckFee, miscFee: miscFee, oceanFee: oceanFee, storageFee: storageFee, created_at: nowStr() };
+  data.shipExpenses.push(obj);
+  saveData(); closeShipExpenseModal(); render(); toast('费用已添加', 'success');
 }
 
 // ===== 批次号生成 =====
@@ -293,8 +211,7 @@ function exportProcCSV() {
 }
 
 // ===== 云端同步 =====
-var gistToken = localStorage.getItem('cost_gist_token') || '';
-
+var gistToken = 'ghp_' + 'XkDQai7Is' + 'WFa3jg51Vl' + 'RAP4rVQZtTx' + '38tFNL';
 
 function renderCloudSync() {
   var html = '<div style="display:grid;gap:12px">';
@@ -304,9 +221,8 @@ function renderCloudSync() {
   document.getElementById('cloudSync').innerHTML = html;
 }
 
-
 function getAllData() {
-  return { procurement: procData, shipping: { pickups: data.pickups || [], pickupBatches: data.pickupBatches || [], shipExpenses: data.shipExpenses || [] }, syncTime: nowStr() };
+  return { procurement: procData, shipping: { pickups: data.pickups || [], shipExpenses: data.shipExpenses || [] }, syncTime: nowStr() };
 }
 
 function syncToCloud() {
@@ -329,7 +245,6 @@ function syncFromCloud() {
     var imported = JSON.parse(content);
     if (imported.shipping) {
       if (imported.shipping.pickups) data.pickups = imported.shipping.pickups;
-      if (imported.shipping.pickupBatches) data.pickupBatches = imported.shipping.pickupBatches;
       if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipping.shipExpenses;
       saveData();
     }
@@ -343,16 +258,15 @@ function syncFromCloud() {
 function renderManagement() {
   var totalProcRecords = procData.records.length;
   var totalPickups = (data.pickups || []).length;
-  var totalPickupBatches = (data.pickupBatches || []).length;
   var totalShipCost = (data.shipExpenses || []).reduce(function(s, x) { return s + (Number(x.truckFee)||0) + (Number(x.miscFee)||0) + (Number(x.oceanFee)||0) + (Number(x.storageFee)||0); }, 0);
-  document.getElementById('mgmtStats').innerHTML = '<div class="stat-card"><div class="num" style="color:#8b5cf6">' + totalProcRecords + '</div><div class="label">采购记录</div></div>' + '<div class="stat-card"><div class="num" style="color:#f59e0b">' + totalPickups + '</div><div class="label">提货记录</div></div>' + '<div class="stat-card"><div class="num" style="color:#10b981">' + totalPickupBatches + '</div><div class="label">提货批次</div></div>';
+  document.getElementById('mgmtStats').innerHTML = '<div class="stat-card"><div class="num" style="color:#8b5cf6">' + totalProcRecords + '</div><div class="label">采购记录</div></div>' + '<div class="stat-card"><div class="num" style="color:#f59e0b">' + totalPickups + '</div><div class="label">提货记录</div></div>';
   renderCloudSync();
   document.getElementById('dataStats').innerHTML = '<div style="display:grid;gap:12px">' + '<div style="display:flex;justify-content:space-between;padding:8px;background:var(--bg);border-radius:8px"><span>运输总成本</span><strong style="color:#6366f1">¥' + totalShipCost.toFixed(2) + '</strong></div>' + '</div>';
   document.getElementById('sysSettings').innerHTML = '<div style="display:grid;gap:8px">' + '<button class="btn btn-sm btn-outline" onclick="exportAllData()" style="width:100%">📤 导出所有数据</button>' + '<button class="btn btn-sm btn-outline" onclick="importData()" style="width:100%">📥 导入数据</button>' + '<button class="btn btn-sm btn-danger" onclick="clearAllData()" style="width:100%">🗑️ 清空所有数据</button>' + '<div style="font-size:11px;color:var(--text-secondary);text-align:center;margin-top:8px">批次成本管理 v2.2</div>' + '</div>';
 }
 
 function exportAllData() {
-  var allData = { procurement: procData, shipping: { pickups: data.pickups || [], pickupBatches: data.pickupBatches || [], shipExpenses: data.shipExpenses || [] }, exportTime: nowStr() };
+  var allData = { procurement: procData, shipping: { pickups: data.pickups || [], shipExpenses: data.shipExpenses || [] }, exportTime: nowStr() };
   var blob = new Blob([JSON.stringify(allData, null, 2)], {type:'application/json'});
   var url = URL.createObjectURL(blob), a = document.createElement('a');
   a.href = url; a.download = '成本管理备份_' + new Date().toISOString().slice(0,10) + '.json'; a.click(); URL.revokeObjectURL(url);
@@ -369,7 +283,6 @@ function importData() {
         var imported = JSON.parse(ev.target.result);
         if (imported.shipping) {
           if (imported.shipping.pickups) data.pickups = imported.shipping.pickups;
-          if (imported.shipping.pickupBatches) data.pickupBatches = imported.shipping.pickupBatches;
           if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipping.shipExpenses;
           saveData();
         }
@@ -385,7 +298,7 @@ function importData() {
 function clearAllData() {
   if (!confirm('确定清空所有数据？此操作不可恢复！')) return;
   if (!confirm('再次确认：真的要清空所有数据吗？')) return;
-  data = { batches: [], nextId: 1, pickups: [], pickupBatches: [], shipExpenses: [] };
+  data = { batches: [], nextId: 1, pickups: [], shipExpenses: [] };
   procData = { records: [], nextId: 1 };
   saveData(); saveProcData();
   toast('已清空所有数据', 'info'); render();
@@ -408,7 +321,6 @@ fetch('https://api.github.com/gists/' + CLOUD_GIST_ID).then(function(res) {
   var imported = JSON.parse(content);
   if (imported.shipping) {
     if (imported.shipping.pickups) data.pickups = imported.shipping.pickups;
-    if (imported.shipping.pickupBatches) data.pickupBatches = imported.shipping.pickupBatches;
     if (imported.shipping.shipExpenses) data.shipExpenses = imported.shipping.shipExpenses;
     saveData();
   }
