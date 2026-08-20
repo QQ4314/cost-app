@@ -1,208 +1,101 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>批次成本管理</title>
-<link rel="stylesheet" href="css/style.css?v=12">
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<style>
-.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
-.modal-content{background:var(--card);border-radius:12px;padding:24px;width:90%;max-width:400px;max-height:80vh;overflow-y:auto}
-.form-group{margin-bottom:12px}
-.form-group label{display:block;margin-bottom:4px;font-weight:600;font-size:12px;color:var(--text-secondary)}
-.form-group input,.form-group select{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;box-sizing:border-box}
-.form-actions{display:flex;gap:8px;margin-top:16px}
-.form-actions button{flex:1}
-.batch-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;cursor:pointer;transition:all .2s}
-.batch-card:hover{border-color:var(--primary);background:var(--primary-light)}
-.batch-card.selected{border-color:var(--primary);background:var(--primary-light)}
-.expense-item{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg);border-radius:6px;margin-bottom:6px}
-.pickup-search-results{max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-top:4px;background:var(--card)}
-.search-result-item{padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .2s}
-.search-result-item:hover{background:var(--primary-light)}
-.search-result-item:last-child{border-bottom:none}
-.selected-batch-info{background:var(--primary-light);border:1px solid var(--primary);border-radius:8px;padding:8px 12px;margin-top:8px;font-size:12px;display:none}
-.toast{position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:white;font-size:14px;z-index:2000;transform:translateX(120%);transition:transform .3s ease}
-.toast.show{transform:translateX(0)}
-.toast-success{background:#10b981}
-.toast-error{background:#ef4444}
-.toast-info{background:#6366f1}
-.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;min-width:100px}
-.stat-card .num{font-size:24px;font-weight:700}
-.stat-card .label{font-size:12px;color:var(--text-secondary);margin-top:4px}
-.proc-table{width:100%;border-collapse:collapse;font-size:13px}
-.proc-table th,.proc-table td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)}
-.proc-table th{background:var(--bg);font-weight:600;font-size:12px;color:var(--text-secondary);position:sticky;top:0}
-.proc-table .num-col{text-align:right;font-family:monospace}
-.empty-state{text-align:center;padding:40px 20px;color:var(--text-secondary)}
-.empty-state .icon{font-size:48px;margin-bottom:12px}
-.btn-xs{font-size:11px;padding:2px 6px;border-radius:4px;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);transition:all .2s}
-.btn-xs:hover{background:var(--bg)}
-.btn-xs.btn-danger{background:#fee2e2;border:#fca5a5;color:#dc2626}
-.btn-xs.btn-danger:hover{background:#fecaca}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>采购端 - 批次成本管理</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .nav-tabs { display:flex;gap:4px;margin-bottom:16px;background:var(--card);border-radius:var(--radius);padding:4px;box-shadow:var(--shadow) }
+    .nav-tab { flex:1;padding:12px;text-align:center;text-decoration:none;background:transparent;border-radius:10px;font-size:15px;font-weight:600;color:var(--text-secondary);font-family:inherit;transition:.2s }
+    .nav-tab.active { background:var(--primary);color:#fff }
+    .nav-tab:hover:not(.active) { background:var(--bg) }
+    .batch-card { background:var(--card);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);cursor:pointer;transition:box-shadow .2s;margin-bottom:10px }
+    .batch-card:hover { box-shadow:var(--shadow-lg) }
+    .batch-card .top-row { display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px }
+    .batch-card .name { font-size:16px;font-weight:700 }
+    .batch-card .info-row { font-size:13px;color:var(--text-secondary);margin:3px 0 }
+    .batch-card .cost-row { display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 }
+    .batch-card .cost-row span { font-size:11px;padding:2px 8px;border-radius:6px;background:var(--bg);color:var(--text-secondary) }
+    .batch-card .total-line { display:flex;gap:18px;margin:4px 0;font-size:14px }
+    .batch-card .actions { display:flex;gap:8px;margin-top:6px;justify-content:flex-end }
+    .product-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px }
+    .stats-bar { display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap }
+    .stat-card { background:var(--card);border-radius:var(--radius);padding:12px 16px;text-align:center;box-shadow:var(--shadow);flex:1;min-width:100px }
+    .stat-card .num { font-size:22px;font-weight:700 }
+    .stat-card .label { font-size:11px;color:var(--text-secondary);margin-top:2px }
+    .prod-table { width:100%;border-collapse:collapse;font-size:13px;background:var(--card);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow) }
+    .prod-table th { background:#0891b2;color:#fff;padding:10px 8px;text-align:left;font-weight:600;white-space:nowrap }
+    .prod-table td { padding:8px;border-bottom:1px solid var(--border);white-space:nowrap }
+    .prod-table tr:hover td { background:#f0f9ff }
+    .prod-table .num-col { text-align:right;font-variant-numeric:tabular-nums }
+    @media (max-width:600px) { .product-grid { grid-template-columns:1fr } }
+  </style>
 </head>
 <body>
-<div class="container">
-<header class="header">
-<h1>📦 批次成本管理</h1>
-<div class="subtitle">采购记录 & 运输成本追踪</div>
-</header>
 
-<nav class="tabs">
-<div class="tab active" data-tab="procurement" onclick="switchTab('procurement')">🛒 采购端</div>
-<div class="tab" data-tab="shipping" onclick="switchTab('shipping')">🚚 运输端</div>
-<div class="tab" data-tab="management" onclick="switchTab('management')">⚙️ 管理</div>
-</nav>
+  <div class="header">
+    <h1>📦 批次成本管理</h1>
+    <p>录入生产批次信息，自动核算单位成本</p>
+  </div>
 
-<div class="tab-content active" id="tabProcurement">
-<div class="stats" id="procStats"></div>
-<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 12px">
-<div style="display:flex;gap:8px">
-<button class="btn btn-primary btn-sm" onclick="openProcAdd()">➕ 新增采购</button>
-<button class="btn btn-sm btn-outline" onclick="exportProcCSV()">📊 导出 Excel</button>
-</div>
-<div id="pageInfo" style="font-size:12px;color:var(--text-secondary)"></div>
-</div>
-<div id="procList"></div>
-</div>
+  <div class="container-wide" id="app">
 
-<div class="tab-content" id="tabShipping">
-<div class="stats" id="shipStats"></div>
-<div style="display:flex;gap:8px;margin:16px 0 12px">
-<button class="btn btn-primary btn-sm" onclick="openPickupModal()">📦 新增提货</button>
-<button class="btn btn-sm btn-outline" onclick="openShipExpenseModal()">💰 新增费用</button>
-</div>
-<div id="shipList"></div>
-</div>
+    <!-- 导航 -->
+    <div class="nav-tabs">
+      <a class="nav-tab active" href="index.html">🛒 采购端</a>
+      <a class="nav-tab" href="shipping.html">🚚 运输端</a>
+      <a class="nav-tab" href="management.html">⚙️ 管理端</a>
+    </div>
 
-<div class="tab-content" id="tabManagement">
-<div class="stats" id="mgmtStats"></div>
-<div class="cards" style="margin-top:16px">
-<div class="card" id="cloudSyncCard">
-<h3>☁️ 云端同步</h3>
-<div id="cloudSync"></div>
-</div>
-<div class="card" id="dataCard">
-<h3>📊 数据统计</h3>
-<div id="dataStats"></div>
-</div>
-<div class="card" id="settingsCard">
-<h3>⚙️ 系统设置</h3>
-<div id="sysSettings"></div>
-</div>
-</div>
-</div>
-</div>
+    <!-- 采购端内容 -->
+    <div id="pageContent">
+      <div class="stats-bar" id="procStats"></div>
+      <div id="procList"></div>
+      <div style="display:flex;gap:8px;justify-content:center;margin:16px 0">
+        <button class="btn btn-sm btn-primary" onclick="openProcAdd()" style="width:auto;padding:10px 24px;background:#8b5cf6">➕ 新增采购</button>
+        <button class="btn btn-sm btn-outline" onclick="exportProcCSV()" style="width:auto;padding:10px 24px">📤 导出Excel</button>
+      </div>
+    </div>
 
-<!-- 提货弹窗 -->
-<div class="modal" id="pickupModal">
-<div class="modal-content">
-<h3 style="margin:0 0 16px">📦 新增提货</h3>
-<form onsubmit="savePickup(event)">
-<div class="form-group">
-<label>搜索批次号</label>
-<input type="text" id="pickupBatchSearch" placeholder="输入批次号、品牌或品名搜索" oninput="searchBatch(this.value)">
-<div class="pickup-search-results" id="batchSearchResults" style="display:none"></div>
-</div>
-<div class="form-group">
-<label>批次号</label>
-<input type="text" id="pickupBatchNo" readonly>
-<div class="selected-batch-info" id="selectedBatchInfo"></div>
-</div>
-<div class="form-group">
-<label>提货数量</label>
-<input type="number" id="pickupQty" min="1" oninput="updatePickupNo()">
-</div>
-<div class="form-group">
-<label>提货单号</label>
-<input type="text" id="pickupNo" readonly placeholder="自动生成">
-</div>
-<div class="form-actions">
-<button type="submit" class="btn btn-primary">保存</button>
-<button type="button" class="btn btn-outline" onclick="closePickupModal()">取消</button>
-</div>
-</form>
-</div>
-</div>
+    <!-- 采购端新增弹窗 -->
+    <div id="procModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeProcModal()">
+      <div class="modal-content" style="max-width:600px">
+        <button class="modal-close" onclick="closeProcModal()">✕</button>
+        <h3 style="margin-bottom:16px">🛒 新增采购记录</h3>
+        <form onsubmit="saveProcurement(event)">
+          <input type="hidden" id="procEditId">
+          <div class="form-row">
+            <div class="form-group"><label>下单日期</label><input type="date" class="form-control" id="procDate"></div>
+            <div class="form-group"><label>品牌 <span style="color:var(--danger)">*</span></label><input type="text" class="form-control" id="procBrand" required placeholder="品牌名称"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>品名 <span style="color:var(--danger)">*</span></label><input type="text" class="form-control" id="procProductName" required placeholder="产品名称"></div>
+          </div>
+          <div class="form-row form-row-3">
+            <div class="form-group"><label>下单数量</label><input type="number" class="form-control" id="procOrderQty" step="1" placeholder="0"></div>
+            <div class="form-group"><label>产出数量</label><input type="number" class="form-control" id="procOutputQty" step="1" placeholder="0"></div>
+          </div>
+          <div class="form-row form-row-3">
+            <div class="form-group"><label>原料价格</label><input type="number" class="form-control" id="procMaterialPrice" step="0.01" placeholder="0.00"></div>
+            <div class="form-group"><label>包材价格</label><input type="number" class="form-control" id="procPackagingPrice" step="0.01" placeholder="0.00"></div>
+            <div class="form-group"><label>工费</label><input type="number" class="form-control" id="procLaborCost" step="0.01" placeholder="0.00"></div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="background:#8b5cf6">保存</button>
+        </form>
+      </div>
+    </div>
 
-<!-- 费用弹窗 -->
-<div class="modal" id="shipExpenseModal">
-<div class="modal-content">
-<h3 style="margin:0 0 16px">💰 新增费用</h3>
-<form onsubmit="saveShipExpense(event)">
-<div class="form-group">
-<label>卡车费用</label>
-<input type="number" id="truckFee" step="0.01" min="0" placeholder="0">
-</div>
-<div class="form-group">
-<label>杂费</label>
-<input type="number" id="miscFee" step="0.01" min="0" placeholder="0">
-</div>
-<div class="form-group">
-<label>海运费</label>
-<input type="number" id="oceanFee" step="0.01" min="0" placeholder="0">
-</div>
-<div class="form-group">
-<label>仓储费</label>
-<input type="number" id="storageFee" step="0.01" min="0" placeholder="0">
-</div>
-<div class="form-actions">
-<button type="submit" class="btn btn-primary">保存</button>
-<button type="button" class="btn btn-outline" onclick="closeShipExpenseModal()">取消</button>
-</div>
-</form>
-</div>
-</div>
+    <!-- 分页 -->
+    <div class="pagination" style="margin-top:16px">
+      <button class="page-btn" id="prevPage" onclick="changePage(-1)">← 上一页</button>
+      <span class="page-info" id="pageInfo">第 1 页</span>
+      <button class="page-btn" id="nextPage" onclick="changePage(1)">下一页 →</button>
+    </div>
+  </div>
 
-<!-- 采购弹窗 -->
-<div class="modal" id="procModal">
-<div class="modal-content">
-<h3 style="margin:0 0 16px">🛒 采购记录</h3>
-<form onsubmit="saveProcurement(event)">
-<input type="hidden" id="procEditId">
-<div class="form-group">
-<label>下单日期</label>
-<input type="date" id="procDate">
-</div>
-<div class="form-group">
-<label>品牌</label>
-<input type="text" id="procBrand" required>
-</div>
-<div class="form-group">
-<label>品名</label>
-<input type="text" id="procProductName" required>
-</div>
-<div class="form-group">
-<label>下单数量</label>
-<input type="number" id="procOrderQty" min="0">
-</div>
-<div class="form-group">
-<label>产出数量</label>
-<input type="number" id="procOutputQty" min="0">
-</div>
-<div class="form-group">
-<label>原料价格</label>
-<input type="number" id="procMaterialPrice" step="0.01" min="0">
-</div>
-<div class="form-group">
-<label>包材价格</label>
-<input type="number" id="procPackagingPrice" step="0.01" min="0">
-</div>
-<div class="form-group">
-<label>工费</label>
-<input type="number" id="procLaborCost" step="0.01" min="0">
-</div>
-<div class="form-actions">
-<button type="submit" class="btn btn-primary">保存</button>
-<button type="button" class="btn btn-outline" onclick="closeProcModal()">取消</button>
-</div>
-</form>
-</div>
-</div>
-
-<div class="toast" id="toast"></div>
-<script src="js/app.js?v=12"></script>
+  <div id="toast" class="toast"></div>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="js/app.js?v=13"></script>
 </body>
 </html>
