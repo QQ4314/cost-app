@@ -294,26 +294,29 @@ function exportProcCSV() {
 
 // ===== 云端同步 =====
 var GIST_ID = 'cost-app-data-sync';
-var gistToken = 'ghp_' + 'XkDQai7Is' + 'WFa3jg51Vl' + 'RAP4rVQZtTx' + '38tFNL';
+var gistToken = localStorage.getItem('cost_gist_token') || '';
 
 
 function renderCloudSync() {
   var html = '<div style="display:grid;gap:12px">';
-  if (gistToken) {
-    html += '<div style="padding:8px;background:#d1fae5;border-radius:8px;font-size:13px;color:#065f46">✅ 已配置 Token</div>';
-    html += '<button class="btn btn-sm btn-primary" onclick="syncToCloud()" style="width:100%;background:#10b981">⬆️ 上传到云端</button>';
-    html += '<button class="btn btn-sm btn-primary" onclick="syncFromCloud()" style="width:100%;background:#6366f1">⬇️ 从云端下载</button>';
-    html += '<button class="btn btn-sm btn-outline" onclick="clearToken()" style="width:100%">🔓 清除 Token</button>';
-  } else {
-    html += '<div style="font-size:13px;color:var(--text-secondary)">配置 GitHub Token 后可多浏览器同步数据</div>';
-    html += '<div class="form-group"><label>GitHub Personal Access Token</label><input type="password" class="form-control" id="gistTokenInput" placeholder="ghp_xxxx..."></div>';
-    html += '<button class="btn btn-sm btn-primary" onclick="saveToken()" style="width:100%;background:#10b981">💾 保存 Token</button>';
-    html += '<div style="font-size:11px;color:var(--text-secondary)">Token 需要 gist 权限，<a href="https://github.com/settings/tokens/new?scopes=gist&description=cost-app-sync" target="_blank" style="color:#6366f1">点击创建</a></div>';
-  }
+  html += '<button class="btn btn-sm btn-primary" onclick="syncToCloud()" style="width:100%;background:#10b981">⬆️ 上传到云端</button>';
+  html += '<button class="btn btn-sm btn-primary" onclick="syncFromCloud()" style="width:100%;background:#6366f1">⬇️ 从云端下载</button>';
   html += '</div>';
   document.getElementById('cloudSync').innerHTML = html;
 }
 
+function saveToken() {
+  var token = document.getElementById('gistTokenInput').value.trim();
+  if (!token) { toast('请输入 Token', 'error'); return; }
+  gistToken = token; localStorage.setItem('cost_gist_token', token);
+  toast('Token 已保存', 'success'); renderCloudSync();
+}
+function clearToken() {
+  if (!confirm('确定清除 Token？')) return;
+  gistToken = ''; gistId = '';
+  localStorage.removeItem('cost_gist_token'); localStorage.removeItem('cost_gist_id');
+  toast('Token 已清除', 'info'); renderCloudSync();
+}
 
 function getAllData() {
   return { procurement: procData, shipping: { pickups: data.pickups || [], pickupBatches: data.pickupBatches || [], shipExpenses: data.shipExpenses || [] }, syncTime: nowStr() };
