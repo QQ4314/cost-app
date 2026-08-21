@@ -149,13 +149,41 @@
         <button class="modal-close" onclick="closeShipExpenseModal()">✕</button>
         <h3 style="margin-bottom:16px">💰 新增费用</h3>
         <form onsubmit="saveShipExpense(event)">
-          <div class="form-row">
-            <div class="form-group"><label>货车运费</label><input type="number" class="form-control" id="truckFee" step="0.01" placeholder="0.00"></div>
-            <div class="form-group"><label>杂费</label><input type="number" class="form-control" id="miscFee" step="0.01" placeholder="0.00"></div>
+          <div class="form-group">
+            <label>费用批次号</label>
+            <input type="text" class="form-control" id="expenseNo" readonly style="background:var(--bg);font-family:monospace;font-weight:600">
           </div>
           <div class="form-row">
-            <div class="form-group"><label>海运费</label><input type="number" class="form-control" id="oceanFee" step="0.01" placeholder="0.00"></div>
-            <div class="form-group"><label>仓储费</label><input type="number" class="form-control" id="storageFee" step="0.01" placeholder="0.00"></div>
+            <div class="form-group">
+              <label>费用类型 <span style="color:var(--danger)">*</span></label>
+              <select class="form-control" id="feeType" required>
+                <option value="">请选择</option>
+                <option value="货车运费">货车运费</option>
+                <option value="杂费">杂费</option>
+                <option value="海运费">海运费</option>
+                <option value="仓储费">仓储费</option>
+              </select>
+            </div>
+            <div class="form-group"><label>金额 <span style="color:var(--danger)">*</span></label><input type="number" class="form-control" id="expenseAmount" step="0.01" required placeholder="0.00"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex:1">
+              <label>提货号</label>
+              <select class="form-control" id="expensePickupNo">
+                <option value="">不关联</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:none;display:flex;align-items:flex-end">
+              <button type="button" class="btn btn-outline" onclick="closeShipExpenseModal();openPickupModal()" style="white-space:nowrap;font-size:12px;padding:6px 12px">+ 添加提货号</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>计算方式</label>
+            <select class="form-control" id="calcMethod">
+              <option value="">不指定</option>
+              <option value="体积">体积</option>
+              <option value="重量">重量</option>
+            </select>
           </div>
           <button type="submit" class="btn btn-primary" style="background:#6366f1">保存</button>
         </form>
@@ -165,6 +193,6 @@
 
   <div id="toast" class="toast"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/app.js?v=17"></script>
+  <script src="js/app.js?v=18"></script>
 </body>
 </html>
