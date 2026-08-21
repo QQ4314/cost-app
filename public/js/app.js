@@ -84,16 +84,25 @@ function updatePagination(total) {
 function renderShipping() {
   var pickups = data.pickups || [];
   var expenses = data.shipExpenses || [];
-  var totalExpense = expenses.reduce(function(s, x) { return s + (Number(x.truckFee)||0) + (Number(x.miscFee)||0) + (Number(x.oceanFee)||0) + (Number(x.storageFee)||0); }, 0);
-  document.getElementById('shipStats').innerHTML = '<div class="stat-card"><div class="num" style="color:#f59e0b">' + pickups.length + '</div><div class="label">提货记录</div></div>' + '<div class="stat-card"><div class="num" style="color:#6366f1">¥' + totalExpense.toFixed(2) + '</div><div class="label">总费用</div></div>';
+  var totalExpense = expenses.reduce(function(s, x) { return s + (Number(x.amount)||0); }, 0);
+  document.getElementById('shipStats').innerHTML = '<div class="stat-card"><div class="num" style="color:#f59e0b">' + pickups.length + '</div><div class="label">提货记录</div></div>' + '<div class="stat-card"><div class="num" style="color:#6366f1">' + expenses.length + '</div><div class="label">费用笔数</div></div>' + '<div class="stat-card"><div class="num" style="color:#6366f1">¥' + totalExpense.toFixed(2) + '</div><div class="label">总费用</div></div>';
   var html = '';
+  // 提货记录
   if (pickups.length > 0) {
     html += '<h4 style="margin:16px 0 8px;color:var(--text)">🚚 提货记录</h4>';
     html += pickups.slice().reverse().map(function(p) {
       return '<div class="batch-card" style="cursor:default;padding:10px">' + '<div style="display:flex;justify-content:space-between;align-items:center">' + '<div><div style="font-weight:600;font-size:13px;font-family:monospace">' + esc(p.pickupNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.batchNo) + ' | ' + esc(p.brand||'') + ' ' + esc(p.productName||'') + (p.volume ? ' | 体积:' + p.volume + 'm³' : '') + (p.weight ? ' | 重量:' + p.weight + 'kg' : '') + '</div></div>' + '<div style="text-align:right"><div style="font-size:14px;font-weight:600">' + p.qty + '件</div>' + '<button class="btn btn-xs btn-danger" onclick="deletePickup(\'' + esc(p.pickupNo) + '\')" style="font-size:10px;padding:2px 8px;margin-top:4px">删除</button></div>' + '</div></div>';
     }).join('');
+  } else {
+    html += '<div class="empty-state"><div class="icon">🚚</div><p>暂无提货记录</p></div>';
   }
-  if (!pickups.length) { html = '<div class="empty-state"><div class="icon">🚚</div><p>暂无提货记录</p></div>'; }
+  // 费用记录
+  if (expenses.length > 0) {
+    html += '<h4 style="margin:16px 0 8px;color:var(--text)">💰 费用记录</h4>';
+    html += expenses.slice().reverse().map(function(e) {
+      return '<div class="batch-card" style="cursor:default;padding:10px">' + '<div style="display:flex;justify-content:space-between;align-items:center">' + '<div><div style="font-weight:600;font-size:13px;font-family:monospace">' + esc(e.expenseNo||'') + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(e.feeType||'') + (e.pickupNo ? ' | 提货:' + esc(e.pickupNo) : '') + (e.calcMethod ? ' | ' + esc(e.calcMethod) : '') + '</div></div>' + '<div style="text-align:right"><div style="font-size:14px;font-weight:600;color:#6366f1">¥' + (Number(e.amount)||0).toFixed(2) + '</div>' + '<button class="btn btn-xs btn-danger" onclick="deleteShipExpense(' + e.id + ')" style="font-size:10px;padding:2px 8px;margin-top:4px">删除</button></div>' + '</div></div>';
+    }).join('');
+  }
   document.getElementById('shipList').innerHTML = html;
 }
 
@@ -152,24 +161,51 @@ function deletePickup(pickupNo) {
   saveData(); toast('已删除', 'info'); render();
 }
 
+// ===== 费用批次号生成 =====
+function genExpenseNo() {
+  var today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  var count = (data.shipExpenses || []).filter(function(e) { return (e.expenseNo || '').indexOf(today) === 0; }).length;
+  return today + '-' + String(count + 1).padStart(2, '0');
+}
+
 // ===== 新增费用 =====
 function openShipExpenseModal() {
-  document.getElementById('truckFee').value = ''; document.getElementById('miscFee').value = '';
-  document.getElementById('oceanFee').value = ''; document.getElementById('storageFee').value = '';
+  document.getElementById('expenseNo').value = genExpenseNo();
+  document.getElementById('feeType').value = '';
+  document.getElementById('expenseAmount').value = '';
+  document.getElementById('calcMethod').value = '';
+  // 加载提货号下拉
+  var sel = document.getElementById('expensePickupNo');
+  sel.innerHTML = '<option value="">不关联</option>';
+  (data.pickups || []).forEach(function(p) {
+    sel.innerHTML += '<option value="' + esc(p.pickupNo) + '">' + esc(p.pickupNo) + ' (' + esc(p.brand||'') + ' ' + esc(p.productName||'') + ')</option>';
+  });
   document.getElementById('shipExpenseModal').style.display = '';
 }
 function closeShipExpenseModal() { document.getElementById('shipExpenseModal').style.display = 'none'; }
 function saveShipExpense(e) {
   e.preventDefault();
-  var truckFee = Number(document.getElementById('truckFee').value) || 0;
-  var miscFee = Number(document.getElementById('miscFee').value) || 0;
-  var oceanFee = Number(document.getElementById('oceanFee').value) || 0;
-  var storageFee = Number(document.getElementById('storageFee').value) || 0;
-  if (!truckFee && !miscFee && !oceanFee && !storageFee) { toast('请填写至少一项费用', 'error'); return; }
+  var feeType = document.getElementById('feeType').value;
+  var amount = Number(document.getElementById('expenseAmount').value) || 0;
+  if (!feeType) { toast('请选择费用类型', 'error'); return; }
+  if (!amount) { toast('请填写金额', 'error'); return; }
   if (!data.shipExpenses) data.shipExpenses = [];
-  var obj = { id: data.nextId++, truckFee: truckFee, miscFee: miscFee, oceanFee: oceanFee, storageFee: storageFee, created_at: nowStr() };
+  var obj = {
+    id: data.nextId++,
+    expenseNo: document.getElementById('expenseNo').value,
+    feeType: feeType,
+    amount: amount,
+    pickupNo: document.getElementById('expensePickupNo').value || '',
+    calcMethod: document.getElementById('calcMethod').value || '',
+    created_at: nowStr()
+  };
   data.shipExpenses.push(obj);
   saveData(); closeShipExpenseModal(); render(); toast('费用已添加', 'success');
+}
+function deleteShipExpense(id) {
+  if (!confirm('确定删除该费用记录？')) return;
+  data.shipExpenses = data.shipExpenses.filter(function(e) { return e.id !== id; });
+  saveData(); toast('已删除', 'info'); render();
 }
 
 // ===== 批次号生成 =====
