@@ -5,6 +5,7 @@ var _isSyncing = false; // 标记是否正在从云端同步
 
 // 当前 Tab
 var currentTab = 'procurement';
+var selectedReportProduct = '';
 
 function switchTab(tab) {
   currentTab = tab;
@@ -129,6 +130,30 @@ function updatePagination(total) {
 }
 
 // ===== 运输端 =====
+function getExpensePickupNos(expense) {
+  var values = Array.isArray(expense && expense.pickupNos) ? expense.pickupNos : [expense && expense.pickupNo];
+  return values.reduce(function(result, value) {
+    value = String(value || '').trim();
+    if (value && result.indexOf(value) === -1) result.push(value);
+    return result;
+  }, []);
+}
+
+function pickupAllocationMetric(pickup, method) {
+  if (method === '体积') {
+    var volumeCm3 = nonNegativeNumber(pickup && pickup.volumeCm3);
+    if (!volumeCm3 && pickup) volumeCm3 = nonNegativeNumber(pickup.lengthCm) * nonNegativeNumber(pickup.widthCm) * nonNegativeNumber(pickup.heightCm);
+    if (!volumeCm3 && pickup && pickup.volume !== '' && pickup.volume != null) volumeCm3 = nonNegativeNumber(pickup.volume) * 1000000;
+    return volumeCm3;
+  }
+  if (method === '重量') {
+    var weightG = pickup && pickup.weightG !== '' && pickup.weightG != null ? nonNegativeNumber(pickup.weightG) : 0;
+    if (!weightG && pickup && pickup.weight !== '' && pickup.weight != null) weightG = nonNegativeNumber(pickup.weight) * 1000;
+    return weightG;
+  }
+  return 0;
+}
+
 function renderShipping() {
   var pickups = data.pickups || [];
   var expenses = data.shipExpenses || [];
@@ -139,7 +164,7 @@ function renderShipping() {
   if (pickups.length > 0) {
     html += '<h4 style="margin:16px 0 8px;color:var(--text)">🚚 提货记录</h4>';
     html += pickups.slice().reverse().map(function(p) {
-      return '<div class="batch-card" style="cursor:default;padding:10px">' + '<div style="display:flex;justify-content:space-between;align-items:center">' + '<div><div style="font-weight:600;font-size:13px;font-family:monospace">' + esc(p.pickupNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.batchNo) + ' | ' + esc(p.brand||'') + ' ' + esc(p.productName||'') + (p.volume ? ' | 体积:' + p.volume + 'm³' : '') + (p.weight ? ' | 重量:' + p.weight + 'kg' : '') + '</div></div>' + '<div style="text-align:right"><div style="font-size:14px;font-weight:600">' + p.qty + '件</div>' + '<button class="btn btn-xs btn-danger" onclick="deletePickup(\'' + esc(p.pickupNo) + '\')" style="font-size:10px;padding:2px 8px;margin-top:4px">删除</button></div>' + '</div></div>';
+      return '<div class="batch-card" style="cursor:default;padding:10px">' + '<div style="display:flex;justify-content:space-between;align-items:center">' + '<div><div style="font-weight:600;font-size:13px;font-family:monospace">' + esc(p.pickupNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.batchNo) + ' | ' + esc(p.brand||'') + ' ' + esc(p.productName||'') + pickupMeasurementText(p) + '</div></div>' + '<div style="text-align:right"><div style="font-size:14px;font-weight:600">' + fmtQty(p.qty) + '件</div>' + '<button class="btn btn-xs btn-danger" onclick="deletePickup(\'' + esc(p.pickupNo) + '\')" style="font-size:10px;padding:2px 8px;margin-top:4px">删除</button></div>' + '</div></div>';
     }).join('');
   } else {
     html += '<div class="empty-state"><div class="icon">🚚</div><p>暂无提货记录</p></div>';
@@ -148,16 +173,60 @@ function renderShipping() {
   if (expenses.length > 0) {
     html += '<h4 style="margin:16px 0 8px;color:var(--text)">💰 费用记录</h4>';
     html += expenses.slice().reverse().map(function(e) {
-      return '<div class="batch-card" style="cursor:default;padding:10px">' + '<div style="display:flex;justify-content:space-between;align-items:center">' + '<div><div style="font-weight:600;font-size:13px;font-family:monospace">' + esc(e.expenseNo||'') + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(e.feeType||'') + (e.pickupNo ? ' | 提货:' + esc(e.pickupNo) : '') + (e.calcMethod ? ' | ' + esc(e.calcMethod) : '') + '</div></div>' + '<div style="text-align:right"><div style="font-size:14px;font-weight:600;color:#6366f1">¥' + nonNegativeNumber(e.amount).toFixed(2) + '</div>' + '<button class="btn btn-xs btn-danger" onclick="deleteShipExpense(' + e.id + ')" style="font-size:10px;padding:2px 8px;margin-top:4px">删除</button></div>' + '</div></div>';
+      var pickupNos = getExpensePickupNos(e);
+      return '<div class="batch-card" style="cursor:default;padding:10px">' + '<div style="display:flex;justify-content:space-between;align-items:center">' + '<div><div style="font-weight:600;font-size:13px;font-family:monospace">' + esc(e.expenseNo||'') + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(e.feeType||'') + (pickupNos.length ? ' | 提货:' + pickupNos.map(esc).join('、') : '') + (e.calcMethod ? ' | ' + esc(e.calcMethod) : '') + '</div></div>' + '<div style="text-align:right"><div style="font-size:14px;font-weight:600;color:#6366f1">¥' + nonNegativeNumber(e.amount).toFixed(2) + '</div>' + '<button class="btn btn-xs btn-danger" onclick="deleteShipExpense(' + e.id + ')" style="font-size:10px;padding:2px 8px;margin-top:4px">删除</button></div>' + '</div></div>';
     }).join('');
   }
   document.getElementById('shipList').innerHTML = html;
 }
 
 // ===== 新增提货 =====
+function getBatchPickupStatus(batchNo) {
+  var records = procData.records.filter(function(record) { return record.batchNo === batchNo; });
+  var outputQty = records.reduce(function(sum, record) { return sum + nonNegativeNumber(record.outputQty); }, 0);
+  var pickedQty = (data.pickups || []).filter(function(pickup) { return pickup.batchNo === batchNo; }).reduce(function(sum, pickup) { return sum + nonNegativeNumber(pickup.qty); }, 0);
+  return { records: records, outputQty: outputQty, pickedQty: pickedQty, remainingQty: Math.max(0, outputQty - pickedQty) };
+}
+
+function pickupMeasurementText(pickup) {
+  var text = '';
+  if (nonNegativeNumber(pickup.lengthCm) > 0 && nonNegativeNumber(pickup.widthCm) > 0 && nonNegativeNumber(pickup.heightCm) > 0) {
+    text += ' | 尺寸:' + fmtQty(pickup.lengthCm) + '×' + fmtQty(pickup.widthCm) + '×' + fmtQty(pickup.heightCm) + 'cm';
+  } else if (pickup.volume !== undefined && pickup.volume !== '') {
+    text += ' | 体积:' + esc(pickup.volume) + 'm³（旧数据）';
+  }
+  if (pickup.weightG !== undefined && pickup.weightG !== '') {
+    text += ' | 重量:' + fmtQty(pickup.weightG) + 'g';
+  } else if (pickup.weight !== undefined && pickup.weight !== '') {
+    text += ' | 重量:' + esc(pickup.weight) + 'kg（旧数据）';
+  }
+  return text;
+}
+
+function parsePickupMeasurements(lengthRaw, widthRaw, heightRaw, weightRaw) {
+  var dimensionValues = [lengthRaw, widthRaw, heightRaw];
+  var hasAnyDimension = dimensionValues.some(function(value) { return String(value).trim() !== ''; });
+  var dimensions = dimensionValues.map(function(value) { return Number(value); });
+  if (hasAnyDimension && (dimensionValues.some(function(value) { return String(value).trim() === ''; }) || dimensions.some(function(value) { return !Number.isFinite(value) || value <= 0; }))) {
+    return { ok: false, error: '请完整填写大于0的长、宽、高' };
+  }
+  var hasWeight = String(weightRaw).trim() !== '';
+  var weightG = Number(weightRaw);
+  if (hasWeight && (!Number.isFinite(weightG) || weightG < 0)) return { ok: false, error: '重量不能小于0' };
+  return {
+    ok: true,
+    lengthCm: hasAnyDimension ? dimensions[0] : '',
+    widthCm: hasAnyDimension ? dimensions[1] : '',
+    heightCm: hasAnyDimension ? dimensions[2] : '',
+    volumeCm3: hasAnyDimension ? dimensions[0] * dimensions[1] * dimensions[2] : '',
+    weightG: hasWeight ? weightG : ''
+  };
+}
+
 function openPickupModal() {
   document.getElementById('pickupBatchSearch').value = ''; document.getElementById('pickupBatchNo').value = '';
-  document.getElementById('pickupQty').value = ''; document.getElementById('pickupVolume').value = ''; document.getElementById('pickupWeight').value = ''; document.getElementById('pickupNo').value = '';
+  document.getElementById('pickupQty').value = ''; document.getElementById('pickupQty').removeAttribute('max'); document.getElementById('pickupQty').setCustomValidity('');
+  document.getElementById('pickupLengthCm').value = ''; document.getElementById('pickupWidthCm').value = ''; document.getElementById('pickupHeightCm').value = ''; document.getElementById('pickupWeightG').value = ''; document.getElementById('pickupNo').value = '';
   document.getElementById('selectedBatchInfo').style.display = 'none';
   document.getElementById('batchSearchResults').style.display = 'none';
   document.getElementById('pickupModal').style.display = '';
@@ -173,18 +242,23 @@ function searchBatch(keyword) {
   results.innerHTML = matched.map(function(p) { return '<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border)" onclick="selectBatch(\'' + esc(p.batchNo) + '\')">' + '<div style="font-weight:600;font-size:13px">' + esc(p.batchNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.brand||'') + ' | ' + esc(p.productName||'') + '</div></div>'; }).join('');
 }
 function selectBatch(batchNo) {
-  var p = procData.records.find(function(x) { return x.batchNo === batchNo; });
+  var status = getBatchPickupStatus(batchNo);
+  var p = status.records[0];
   if (!p) return;
   document.getElementById('pickupBatchNo').value = batchNo;
   document.getElementById('pickupBatchSearch').value = batchNo;
   document.getElementById('batchSearchResults').style.display = 'none';
   document.getElementById('selectedBatchInfo').style.display = 'block';
-  document.getElementById('selectedBatchInfo').innerHTML = '<strong>订单批次号:</strong> ' + esc(p.batchNo) + '<br>' + '<strong>品牌:</strong> ' + esc(p.brand||'') + ' | <strong>品名:</strong> ' + esc(p.productName||'');
+  document.getElementById('selectedBatchInfo').innerHTML = '<strong>订单批次号:</strong> ' + esc(p.batchNo) + '<br>' + '<strong>品牌:</strong> ' + esc(p.brand||'') + ' | <strong>品名:</strong> ' + esc(p.productName||'') + '<br>' + '<strong>产出数量:</strong> ' + fmtQty(status.outputQty) + ' | <strong>已提货:</strong> ' + fmtQty(status.pickedQty) + ' | <strong style="color:' + (status.remainingQty > 0 ? '#059669' : '#dc2626') + '">剩余可提货: ' + fmtQty(status.remainingQty) + '</strong>';
+  document.getElementById('pickupQty').max = status.remainingQty;
   updatePickupNo();
 }
 function updatePickupNo() {
   var batchNo = document.getElementById('pickupBatchNo').value;
   var qty = document.getElementById('pickupQty').value;
+  var qtyInput = document.getElementById('pickupQty');
+  var status = batchNo ? getBatchPickupStatus(batchNo) : null;
+  qtyInput.setCustomValidity(status && Number(qty) > status.remainingQty ? '提货数量不能超过剩余可提货数量 ' + fmtQty(status.remainingQty) : '');
   if (batchNo && qty) { document.getElementById('pickupNo').value = genPickupNo(batchNo, qty); }
   else { document.getElementById('pickupNo').value = ''; }
 }
@@ -200,15 +274,18 @@ function genPickupNo(batchNo, qty) {
 function savePickup(e) {
   e.preventDefault();
   var batchNo = document.getElementById('pickupBatchNo').value;
-  var qty = parseInt(document.getElementById('pickupQty').value);
+  var qty = Number(document.getElementById('pickupQty').value);
   if (!batchNo) { toast('请选择订单批次号', 'error'); return; }
-  if (!qty || qty <= 0) { toast('请填写提货数量', 'error'); return; }
-  var volume = document.getElementById('pickupVolume').value;
-  var weight = document.getElementById('pickupWeight').value;
+  if (!Number.isSafeInteger(qty) || qty <= 0) { toast('提货数量必须是大于0的整数', 'error'); return; }
+  var status = getBatchPickupStatus(batchNo);
+  if (!status.records.length) { toast('订单批次号不存在，请重新选择', 'error'); return; }
+  if (qty > status.remainingQty) { toast('提货数量不能超过剩余可提货数量 ' + fmtQty(status.remainingQty), 'error'); document.getElementById('pickupQty').focus(); return; }
+  var measurements = parsePickupMeasurements(document.getElementById('pickupLengthCm').value, document.getElementById('pickupWidthCm').value, document.getElementById('pickupHeightCm').value, document.getElementById('pickupWeightG').value);
+  if (!measurements.ok) { toast(measurements.error, 'error'); return; }
   var pickupNo = genPickupNo(batchNo, qty);
   if (!data.pickups) data.pickups = [];
-  var proc = procData.records.find(function(p) { return p.batchNo === batchNo; });
-  data.pickups.push({ pickupNo: pickupNo, batchNo: batchNo, brand: proc ? proc.brand : '', productName: proc ? proc.productName : '', qty: qty, volume: volume || '', weight: weight || '', created_at: nowStr() });
+  var proc = status.records[0];
+  data.pickups.push({ pickupNo: pickupNo, batchNo: batchNo, brand: proc.brand || '', productName: proc.productName || '', qty: qty, lengthCm: measurements.lengthCm, widthCm: measurements.widthCm, heightCm: measurements.heightCm, volumeCm3: measurements.volumeCm3, weightG: measurements.weightG, created_at: nowStr() });
   saveData(); closePickupModal(); render(); toast('提货记录已添加', 'success');
 }
 function deletePickup(pickupNo) {
@@ -233,28 +310,100 @@ function openShipExpenseModal() {
   document.getElementById('feeType').value = '';
   document.getElementById('expenseAmount').value = '';
   document.getElementById('calcMethod').value = '';
-  // 加载提货号下拉
-  var sel = document.getElementById('expensePickupNo');
-  sel.innerHTML = '<option value="">不关联</option>';
-  (data.pickups || []).forEach(function(p) {
-    sel.innerHTML += '<option value="' + esc(p.pickupNo) + '">' + esc(p.pickupNo) + ' (' + esc(p.brand||'') + ' ' + esc(p.productName||'') + ')</option>';
-  });
+  document.getElementById('expensePickupRows').innerHTML = '';
+  addExpensePickupRow();
   document.getElementById('shipExpenseModal').style.display = '';
 }
 function closeShipExpenseModal() { document.getElementById('shipExpenseModal').style.display = 'none'; }
+
+function updateExpensePickupRemoveButtons() {
+  var rows = document.querySelectorAll('#expensePickupRows .expense-pickup-row');
+  Array.prototype.forEach.call(rows, function(row) {
+    row.querySelector('.expense-pickup-remove').style.visibility = rows.length > 1 ? 'visible' : 'hidden';
+  });
+}
+
+function addExpensePickupRow(selectedPickupNo) {
+  var container = document.getElementById('expensePickupRows');
+  var row = document.createElement('div');
+  row.className = 'expense-pickup-row';
+  var input = document.createElement('input');
+  input.type = 'text'; input.className = 'form-control expense-pickup-search'; input.placeholder = '输入关键词搜索已有提货号...'; input.autocomplete = 'off';
+  var results = document.createElement('div');
+  results.className = 'expense-pickup-results';
+  var removeButton = document.createElement('button');
+  removeButton.type = 'button'; removeButton.className = 'btn btn-outline expense-pickup-remove'; removeButton.textContent = '✕'; removeButton.title = '移除此提货号'; removeButton.style.cssText = 'width:36px;padding:6px;color:#dc2626';
+  input.addEventListener('input', function() { input.dataset.pickupNo = ''; renderExpensePickupResults(input, results); });
+  input.addEventListener('focus', function() { renderExpensePickupResults(input, results); });
+  input.addEventListener('blur', function() { setTimeout(function() { results.style.display = 'none'; }, 150); });
+  removeButton.addEventListener('click', function() { row.remove(); updateExpensePickupRemoveButtons(); });
+  row.appendChild(input); row.appendChild(removeButton); row.appendChild(results); container.appendChild(row);
+  if (selectedPickupNo) { input.value = selectedPickupNo; input.dataset.pickupNo = selectedPickupNo; }
+  updateExpensePickupRemoveButtons();
+  if (!selectedPickupNo) input.focus();
+}
+
+function renderExpensePickupResults(input, results) {
+  var keyword = input.value.trim().toLowerCase();
+  var pickups = (data.pickups || []).filter(function(pickup) {
+    if (!keyword) return true;
+    return [pickup.pickupNo, pickup.batchNo, pickup.brand, pickup.productName].some(function(value) { return String(value || '').toLowerCase().indexOf(keyword) >= 0; });
+  }).slice(0, 30);
+  results.innerHTML = '';
+  if (!pickups.length) {
+    var empty = document.createElement('div'); empty.className = 'expense-pickup-result'; empty.textContent = '没有匹配的已生成提货号'; empty.style.color = 'var(--text-secondary)'; results.appendChild(empty);
+  } else {
+    pickups.forEach(function(pickup) {
+      var option = document.createElement('div'); option.className = 'expense-pickup-result';
+      var title = document.createElement('div'); title.style.cssText = 'font-weight:600;font-size:13px;font-family:monospace'; title.textContent = pickup.pickupNo || '';
+      var detail = document.createElement('div'); detail.style.cssText = 'font-size:11px;color:var(--text-secondary)'; detail.textContent = (pickup.batchNo || '') + ' | ' + (pickup.brand || '') + ' ' + (pickup.productName || '');
+      option.appendChild(title); option.appendChild(detail);
+      option.addEventListener('mousedown', function(event) { event.preventDefault(); selectExpensePickup(input, results, pickup.pickupNo || ''); });
+      results.appendChild(option);
+    });
+  }
+  results.style.display = 'block';
+}
+
+function selectExpensePickup(input, results, pickupNo) {
+  var duplicate = Array.prototype.some.call(document.querySelectorAll('#expensePickupRows .expense-pickup-search'), function(other) {
+    return other !== input && other.dataset.pickupNo === pickupNo;
+  });
+  if (duplicate) { toast('该提货号已选择，请勿重复添加', 'error'); return; }
+  input.value = pickupNo; input.dataset.pickupNo = pickupNo; results.style.display = 'none';
+}
+
+function collectExpensePickupNos() {
+  var values = [];
+  var inputs = document.querySelectorAll('#expensePickupRows .expense-pickup-search');
+  for (var i = 0; i < inputs.length; i++) {
+    var typed = inputs[i].value.trim();
+    var selected = String(inputs[i].dataset.pickupNo || '').trim();
+    if (!typed) continue;
+    if (!selected || typed !== selected) return { ok: false, error: '请从搜索结果中选择有效的提货号' };
+    if (values.indexOf(selected) !== -1) return { ok: false, error: '同一个提货号不能重复选择' };
+    values.push(selected);
+  }
+  return { ok: true, pickupNos: values };
+}
+
 function saveShipExpense(e) {
   e.preventDefault();
   var feeType = document.getElementById('feeType').value;
   var amount = Number(document.getElementById('expenseAmount').value);
   if (!feeType) { toast('请选择费用类型', 'error'); return; }
   if (!Number.isFinite(amount) || amount <= 0) { toast('请填写大于 0 的有效金额', 'error'); return; }
+  var selectedPickups = collectExpensePickupNos();
+  if (!selectedPickups.ok) { toast(selectedPickups.error, 'error'); return; }
+  if (!selectedPickups.pickupNos.length) { toast('请至少选择一个已生成的提货号', 'error'); return; }
   if (!data.shipExpenses) data.shipExpenses = [];
   var obj = {
     id: data.nextId++,
     expenseNo: document.getElementById('expenseNo').value,
     feeType: feeType,
     amount: amount,
-    pickupNo: document.getElementById('expensePickupNo').value || '',
+    pickupNo: selectedPickups.pickupNos[0] || '',
+    pickupNos: selectedPickups.pickupNos,
     calcMethod: document.getElementById('calcMethod').value || '',
     created_at: nowStr()
   };
@@ -410,6 +559,23 @@ function addUniqueValue(list, value) {
   if (value && list.indexOf(value) === -1) list.push(value);
 }
 
+function summarizeBatchRows(rows) {
+  var totals = (rows || []).reduce(function(result, row) {
+    result.orderQty += row.orderQty;
+    result.outputQty += row.outputQty;
+    result.pickupQty += row.pickupQty;
+    result.materialCost += row.materialCost;
+    result.packagingCost += row.packagingCost;
+    result.laborCost += row.laborCost;
+    result.procurementCost += row.procurementCost;
+    result.shippingCost += row.shippingCost;
+    result.totalCost += row.totalCost;
+    return result;
+  }, { orderQty: 0, outputQty: 0, pickupQty: 0, materialCost: 0, packagingCost: 0, laborCost: 0, procurementCost: 0, shippingCost: 0, totalCost: 0 });
+  totals.unitCost = totals.pickupQty > 0 ? totals.totalCost / totals.pickupQty : null;
+  return totals;
+}
+
 function buildBatchReport(records, pickups, expenses) {
   records = Array.isArray(records) ? records : [];
   pickups = Array.isArray(pickups) ? pickups : [];
@@ -448,6 +614,7 @@ function buildBatchReport(records, pickups, expenses) {
   });
 
   var pickupToBatch = Object.create(null);
+  var pickupByNo = Object.create(null);
   var pickupNoStates = Object.create(null);
   var unmatchedPickups = [];
   pickups.forEach(function(pickup) {
@@ -463,11 +630,13 @@ function buildBatchReport(records, pickups, expenses) {
       if (!pickupNoStates[pickupKey]) {
         pickupNoStates[pickupKey] = { groupKey: groupKey, count: 1, conflict: false };
         pickupToBatch[pickupKey] = groupKey;
+        pickupByNo[pickupKey] = pickup;
       } else {
         pickupNoStates[pickupKey].count++;
         if (pickupNoStates[pickupKey].groupKey !== groupKey) {
           pickupNoStates[pickupKey].conflict = true;
           delete pickupToBatch[pickupKey];
+          delete pickupByNo[pickupKey];
         }
       }
     }
@@ -481,15 +650,22 @@ function buildBatchReport(records, pickups, expenses) {
 
   var unallocatedExpenses = [];
   expenses.forEach(function(expense) {
-    var pickupNo = String(expense.pickupNo || '').trim();
-    var groupKey = pickupToBatch['$' + pickupNo];
-    var row = groupKey ? groups[groupKey] : null;
-    if (row) {
-      row.shippingCost += nonNegativeNumber(expense.amount);
-      row.expenseCount++;
-    } else {
-      unallocatedExpenses.push(expense);
-    }
+    var pickupNos = getExpensePickupNos(expense);
+    var links = pickupNos.map(function(pickupNo) {
+      var pickupKey = '$' + pickupNo;
+      return { pickupNo: pickupNo, groupKey: pickupToBatch[pickupKey], pickup: pickupByNo[pickupKey] };
+    });
+    if (!links.length || links.some(function(link) { return !link.groupKey || !link.pickup; })) { unallocatedExpenses.push(expense); return; }
+    var weights = links.map(function(link) { return pickupAllocationMetric(link.pickup, expense.calcMethod); });
+    var totalWeight = weights.reduce(function(sum, weight) { return sum + weight; }, 0);
+    if (totalWeight <= 0) { weights = links.map(function() { return 1; }); totalWeight = links.length; }
+    var amount = nonNegativeNumber(expense.amount);
+    var touchedGroups = Object.create(null);
+    links.forEach(function(link, index) {
+      groups[link.groupKey].shippingCost += amount * weights[index] / totalWeight;
+      touchedGroups[link.groupKey] = true;
+    });
+    Object.keys(touchedGroups).forEach(function(groupKey) { groups[groupKey].expenseCount++; });
   });
 
   var rows = groupKeys.map(function(groupKey) {
@@ -500,7 +676,7 @@ function buildBatchReport(records, pickups, expenses) {
     row.identityConflict = row.dates.length > 1 || row.brands.length > 1 || row.productNames.length > 1;
     row.procurementCost = row.materialCost + row.packagingCost + row.laborCost;
     row.totalCost = row.procurementCost + row.shippingCost;
-    row.unitCost = row.outputQty > 0 ? row.totalCost / row.outputQty : null;
+    row.unitCost = row.pickupQty > 0 ? row.totalCost / row.pickupQty : null;
     return row;
   });
 
@@ -509,19 +685,7 @@ function buildBatchReport(records, pickups, expenses) {
     return dateCompare || String(a.batchNo).localeCompare(String(b.batchNo));
   });
 
-  var totals = rows.reduce(function(result, row) {
-    result.orderQty += row.orderQty;
-    result.outputQty += row.outputQty;
-    result.pickupQty += row.pickupQty;
-    result.materialCost += row.materialCost;
-    result.packagingCost += row.packagingCost;
-    result.laborCost += row.laborCost;
-    result.procurementCost += row.procurementCost;
-    result.shippingCost += row.shippingCost;
-    result.totalCost += row.totalCost;
-    return result;
-  }, { orderQty: 0, outputQty: 0, pickupQty: 0, materialCost: 0, packagingCost: 0, laborCost: 0, procurementCost: 0, shippingCost: 0, totalCost: 0 });
-  totals.unitCost = totals.outputQty > 0 ? totals.totalCost / totals.outputQty : null;
+  var totals = summarizeBatchRows(rows);
 
   var unallocatedShippingCost = unallocatedExpenses.reduce(function(sum, expense) {
     return sum + nonNegativeNumber(expense.amount);
@@ -569,9 +733,54 @@ function buildProductSummary(batchRows) {
   return keys.map(function(key) {
     var product = groups[key];
     product.brand = product.brands.join(' / ');
-    product.unitCost = product.outputQty > 0 ? product.totalCost / product.outputQty : null;
+    product.unitCost = product.pickupQty > 0 ? product.totalCost / product.pickupQty : null;
     return product;
   }).sort(function(a, b) { return String(a.productName).localeCompare(String(b.productName), 'zh-CN'); });
+}
+
+function getReportProductNames() {
+  var names = [];
+  (procData.records || []).forEach(function(record) { addUniqueValue(names, record.productName); });
+  return names.sort(function(a, b) { return a.localeCompare(b, 'zh-CN'); });
+}
+
+function searchReportProducts(keyword) {
+  var results = document.getElementById('reportProductResults');
+  var normalized = String(keyword || '').trim().toLowerCase();
+  var names = getReportProductNames().filter(function(name) { return !normalized || name.toLowerCase().indexOf(normalized) >= 0; }).slice(0, 50);
+  results.innerHTML = '';
+  if (!names.length) {
+    var empty = document.createElement('div'); empty.className = 'report-product-option'; empty.textContent = '没有匹配的品名'; empty.style.color = 'var(--text-secondary)'; results.appendChild(empty);
+  } else {
+    names.forEach(function(name) {
+      var option = document.createElement('div'); option.className = 'report-product-option'; option.textContent = name;
+      option.addEventListener('mousedown', function(event) { event.preventDefault(); selectReportProduct(name); });
+      results.appendChild(option);
+    });
+  }
+  results.style.display = 'block';
+}
+
+function hideReportProductResults() {
+  setTimeout(function() { document.getElementById('reportProductResults').style.display = 'none'; }, 150);
+}
+
+function selectReportProduct(productName) {
+  selectedReportProduct = productName;
+  document.getElementById('reportProductSearch').value = productName;
+  document.getElementById('reportProductResults').style.display = 'none';
+  renderReport();
+}
+
+function clearReportProduct() {
+  selectedReportProduct = '';
+  document.getElementById('reportProductSearch').value = '';
+  document.getElementById('reportProductResults').style.display = 'none';
+  renderReport();
+}
+
+function reportRowsForProduct(rows, productName) {
+  return (rows || []).filter(function(row) { return (row.productNames || []).indexOf(productName) !== -1; });
 }
 
 function renderReport() {
@@ -598,30 +807,36 @@ function renderReport() {
       ? '<div class="report-note"><strong>归集正常：</strong>全部运输费用均已通过提货号匹配到采购订单批次。</div>'
       : '<div class="report-note"><strong>当前口径：</strong>暂无运输费用记录，订单总费用暂时等于采购费用。</div>';
 
-  if (!report.rows.length) {
-    document.getElementById('productSummary').innerHTML = '';
-    document.getElementById('reportList').innerHTML = '<div class="empty-state"><div class="icon">📊</div><p>采购端暂无订单，暂时不能生成批次报表</p></div>';
-  } else {
-    var productHtml = '<h3 class="report-section-title">📦 按品名汇总</h3><div style="overflow-x:auto"><table class="proc-table product-table"><thead><tr>' +
-      '<th>品名</th><th>品牌</th><th class="num-col">订单批次数</th><th class="num-col">下单量</th><th class="num-col">产出量</th><th class="num-col">已提货</th>' +
-      '<th class="num-col">采购费用</th><th class="num-col">运输费用</th><th class="num-col">总费用</th><th class="num-col">单位成本</th>' +
-      '</tr></thead><tbody>';
-    report.products.forEach(function(product) {
-      productHtml += '<tr><td><strong>' + esc(product.productName) + '</strong></td><td>' + esc(product.brand) + '</td>' +
-        '<td class="num-col">' + product.batchCount + '</td><td class="num-col">' + fmtQty(product.orderQty) + '</td><td class="num-col">' + fmtQty(product.outputQty) + '</td><td class="num-col">' + fmtQty(product.pickupQty) + '</td>' +
-        '<td class="num-col">¥' + num(product.procurementCost) + '</td><td class="num-col">¥' + num(product.shippingCost) + '</td><td class="num-col"><strong>¥' + num(product.totalCost) + '</strong></td>' +
-        '<td class="num-col"><strong>' + (product.unitCost == null ? '--' : '¥' + num(product.unitCost)) + '</strong></td></tr>';
-    });
-    productHtml += '</tbody></table></div>';
-    document.getElementById('productSummary').innerHTML = productHtml;
+  var productNames = getReportProductNames();
+  if (selectedReportProduct && productNames.indexOf(selectedReportProduct) === -1) selectedReportProduct = '';
+  var productInput = document.getElementById('reportProductSearch');
+  if (document.activeElement !== productInput) productInput.value = selectedReportProduct;
 
-    var html = '<h3 class="report-section-title">📋 订单批次明细</h3><div style="overflow-x:auto"><table class="proc-table report-table"><thead><tr>' +
+  if (!report.rows.length) {
+    document.getElementById('reportProductSummary').innerHTML = '';
+    document.getElementById('reportList').innerHTML = '<div class="empty-state"><div class="icon">📊</div><p>采购端暂无订单，暂时不能生成批次报表</p></div>';
+  } else if (!selectedReportProduct) {
+    document.getElementById('reportProductSummary').innerHTML = '';
+    document.getElementById('reportList').innerHTML = '<div class="empty-state"><div class="icon">🔎</div><p>请先输入关键词并选择一个品名</p></div>';
+  } else {
+    var selectedRows = reportRowsForProduct(report.rows, selectedReportProduct);
+    var selectedTotals = summarizeBatchRows(selectedRows);
+    document.getElementById('reportProductSummary').innerHTML = '<h3 class="report-section-title">📦 ' + esc(selectedReportProduct) + ' 汇总</h3><div class="stats-bar">' +
+      '<div class="stat-card"><div class="num" style="color:#0f766e">' + selectedRows.length + '</div><div class="label">订单批次数</div></div>' +
+      '<div class="stat-card"><div class="num" style="color:#0f766e">' + fmtQty(selectedTotals.outputQty) + '</div><div class="label">产出数量</div></div>' +
+      '<div class="stat-card"><div class="num" style="color:#f59e0b">' + fmtQty(selectedTotals.pickupQty) + '</div><div class="label">已提货数量</div></div>' +
+      '<div class="stat-card"><div class="num" style="color:#8b5cf6">¥' + num(selectedTotals.procurementCost) + '</div><div class="label">采购费用</div></div>' +
+      '<div class="stat-card"><div class="num" style="color:#6366f1">¥' + num(selectedTotals.shippingCost) + '</div><div class="label">运输费用</div></div>' +
+      '<div class="stat-card"><div class="num" style="color:#059669">¥' + num(selectedTotals.totalCost) + '</div><div class="label">总费用</div></div>' +
+      '<div class="stat-card"><div class="num" style="color:#dc2626">' + (selectedTotals.unitCost == null ? '--' : '¥' + num(selectedTotals.unitCost)) + '</div><div class="label">货品成本/件</div></div></div>';
+
+    var html = '<h3 class="report-section-title">📋 ' + esc(selectedReportProduct) + ' — 订单批次号明细</h3><div style="overflow-x:auto"><table class="proc-table report-table"><thead><tr>' +
       '<th class="batch-col">订单批次号</th><th>下单日期</th><th>品牌</th><th>品名</th>' +
       '<th class="num-col">下单量</th><th class="num-col">产出量</th><th class="num-col">已提货</th>' +
       '<th class="num-col">原料总成本</th><th class="num-col">包材总成本</th><th class="num-col">工费总额</th>' +
-      '<th class="num-col">采购费用</th><th class="num-col">运输费用</th><th class="num-col">总费用</th><th class="num-col">单位成本</th>' +
+      '<th class="num-col">采购费用</th><th class="num-col">运输费用</th><th class="num-col">总费用</th><th class="num-col">货品成本/件</th>' +
       '</tr></thead><tbody>';
-    report.rows.forEach(function(row) {
+    selectedRows.forEach(function(row) {
       var pickupColor = row.outputQty > 0 && row.pickupQty > row.outputQty ? '#dc2626' : 'inherit';
       html += '<tr>' +
         '<td class="batch-col"><strong style="color:' + (row.missingBatchNo ? '#ea580c' : '#0f766e') + '">' + esc(row.batchNo) + '</strong>' + (row.recordCount > 1 ? '<div style="font-size:10px;color:var(--text-secondary)">合并 ' + row.recordCount + ' 条采购</div>' : '') + '</td>' +
@@ -633,18 +848,19 @@ function renderReport() {
         '<td class="num-col"><strong>¥' + num(row.totalCost) + '</strong></td><td class="num-col"><strong>' + (row.unitCost == null ? '--' : '¥' + num(row.unitCost)) + '</strong></td>' +
         '</tr>';
     });
-    html += '</tbody><tfoot><tr><td class="batch-col">合计</td><td colspan="3">' + report.rows.length + ' 个订单批次</td>' +
-      '<td class="num-col">' + fmtQty(totals.orderQty) + '</td><td class="num-col">' + fmtQty(totals.outputQty) + '</td><td class="num-col">' + fmtQty(totals.pickupQty) + '</td>' +
-      '<td class="num-col">¥' + num(totals.materialCost) + '</td><td class="num-col">¥' + num(totals.packagingCost) + '</td><td class="num-col">¥' + num(totals.laborCost) + '</td>' +
-      '<td class="num-col">¥' + num(totals.procurementCost) + '</td><td class="num-col">¥' + num(totals.shippingCost) + '</td><td class="num-col">¥' + num(totals.totalCost) + '</td><td class="num-col">' + (totals.unitCost == null ? '--' : '¥' + num(totals.unitCost)) + '</td></tr></tfoot></table></div>';
+    html += '</tbody><tfoot><tr><td class="batch-col">汇总</td><td colspan="3">' + selectedRows.length + ' 个订单批次</td>' +
+      '<td class="num-col">' + fmtQty(selectedTotals.orderQty) + '</td><td class="num-col">' + fmtQty(selectedTotals.outputQty) + '</td><td class="num-col">' + fmtQty(selectedTotals.pickupQty) + '</td>' +
+      '<td class="num-col">¥' + num(selectedTotals.materialCost) + '</td><td class="num-col">¥' + num(selectedTotals.packagingCost) + '</td><td class="num-col">¥' + num(selectedTotals.laborCost) + '</td>' +
+      '<td class="num-col">¥' + num(selectedTotals.procurementCost) + '</td><td class="num-col">¥' + num(selectedTotals.shippingCost) + '</td><td class="num-col">¥' + num(selectedTotals.totalCost) + '</td><td class="num-col">' + (selectedTotals.unitCost == null ? '--' : '¥' + num(selectedTotals.unitCost)) + '</td></tr></tfoot></table></div>';
     document.getElementById('reportList').innerHTML = html;
   }
 
   renderCloudSync();
   document.getElementById('reportMethod').innerHTML = '<div style="display:grid;gap:8px;font-size:13px;line-height:1.5">' +
-    '<div><strong>归集路径：</strong>订单批次号 → 提货号 → 运输费用</div>' +
+    '<div><strong>归集路径：</strong>订单批次号 → 一个或多个提货号 → 运输费用</div>' +
     '<div><strong>采购费用：</strong>原料总成本 + 包材总成本 + 工费总额</div>' +
-    '<div><strong>单位成本：</strong>（采购费用 + 运输费用）÷ 产出数量</div>' +
+    '<div><strong>多提货号分摊：</strong>按所选体积或重量比例分摊；未指定或全部缺少对应数据时平均分摊</div>' +
+    '<div><strong>货品成本：</strong>（采购费用 + 运输费用）÷ 已提货数量</div>' +
     '<div style="color:var(--text-secondary)">未关联提货号的运输费用不会自动分摊，需在运输端补充关联。</div></div>';
   document.getElementById('sysSettings').innerHTML = '<div style="display:grid;gap:8px">' + '<button class="btn btn-sm btn-outline" onclick="exportAllData()" style="width:100%">📤 导出所有数据</button>' + '<button class="btn btn-sm btn-outline" onclick="importData()" style="width:100%">📥 导入数据</button>' + '<button class="btn btn-sm btn-danger" onclick="clearAllData()" style="width:100%">🗑️ 清空所有数据</button>' + '</div>';
 }
@@ -652,35 +868,36 @@ function renderReport() {
 function exportBatchReport() {
   var report = buildBatchReport(procData.records, data.pickups || [], data.shipExpenses || []);
   if (!report.rows.length) { toast('没有批次数据可导出', 'error'); return; }
-  var rows = report.rows.map(function(row) {
+  if (!selectedReportProduct) { toast('请先选择要导出的品名', 'error'); return; }
+  var selectedRows = reportRowsForProduct(report.rows, selectedReportProduct);
+  var selectedTotals = summarizeBatchRows(selectedRows);
+  var rows = selectedRows.map(function(row) {
     return {
       '订单批次号': row.batchNo, '下单日期': row.date, '品牌': row.brand, '品名': row.productName,
       '下单数量': row.orderQty, '产出数量': row.outputQty, '已提货数量': row.pickupQty,
       '原料总成本': row.materialCost, '包材总成本': row.packagingCost, '工费总额': row.laborCost,
       '采购费用': row.procurementCost, '运输费用': row.shippingCost, '总费用': row.totalCost,
-      '单位成本': row.unitCost == null ? '' : row.unitCost
+      '货品成本/件': row.unitCost == null ? '' : row.unitCost
     };
   });
   var workbook = XLSX.utils.book_new();
-  var productRows = report.products.map(function(product) {
-    return {
-      '品名': product.productName, '品牌': product.brand, '订单批次数': product.batchCount,
-      '下单数量': product.orderQty, '产出数量': product.outputQty, '已提货数量': product.pickupQty,
-      '采购费用': product.procurementCost, '运输费用': product.shippingCost, '总费用': product.totalCost,
-      '单位成本': product.unitCost == null ? '' : product.unitCost
-    };
-  });
-  var productSheet = XLSX.utils.json_to_sheet(productRows);
-  productSheet['!cols'] = [{wch:20},{wch:16},{wch:12},{wch:12},{wch:12},{wch:12},{wch:14},{wch:14},{wch:14},{wch:12}];
-  XLSX.utils.book_append_sheet(workbook, productSheet, '品名费用汇总');
+  var summarySheet = XLSX.utils.json_to_sheet([{
+    '品名': selectedReportProduct, '订单批次数': selectedRows.length, '下单数量': selectedTotals.orderQty,
+    '产出数量': selectedTotals.outputQty, '已提货数量': selectedTotals.pickupQty,
+    '采购费用': selectedTotals.procurementCost, '运输费用': selectedTotals.shippingCost, '总费用': selectedTotals.totalCost,
+    '货品成本/件': selectedTotals.unitCost == null ? '' : selectedTotals.unitCost
+  }]);
+  summarySheet['!cols'] = [{wch:20},{wch:12},{wch:12},{wch:12},{wch:12},{wch:14},{wch:14},{wch:14},{wch:14}];
+  XLSX.utils.book_append_sheet(workbook, summarySheet, '品名汇总');
   var reportSheet = XLSX.utils.json_to_sheet(rows);
   reportSheet['!cols'] = [{wch:28},{wch:12},{wch:14},{wch:18},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:14},{wch:12},{wch:12}];
   XLSX.utils.book_append_sheet(workbook, reportSheet, '订单批次明细');
   if (report.unallocatedExpenses.length) {
     var unallocatedRows = report.unallocatedExpenses.map(function(expense) {
+      var pickupNos = getExpensePickupNos(expense);
       return {
         '费用批次号': expense.expenseNo || '', '费用类型': expense.feeType || '', '金额': nonNegativeNumber(expense.amount),
-        '提货号': expense.pickupNo || '', '未归集原因': expense.pickupNo ? '提货号未匹配采购批次' : '未关联提货号', '录入时间': expense.created_at || ''
+        '提货号': pickupNos.join('、'), '未归集原因': pickupNos.length ? '一个或多个提货号未匹配采购批次' : '未关联提货号', '录入时间': expense.created_at || ''
       };
     });
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(unallocatedRows), '未归集运输费用');
@@ -689,13 +906,17 @@ function exportBatchReport() {
     var unmatchedPickupRows = report.unmatchedPickups.map(function(pickup) {
       return {
         '提货号': pickup.pickupNo || '', '订单批次号': pickup.batchNo || '', '品牌': pickup.brand || '', '品名': pickup.productName || '',
-        '提货数量': nonNegativeNumber(pickup.qty), '体积(m³)': nonNegativeNumber(pickup.volume), '重量(kg)': nonNegativeNumber(pickup.weight), '录入时间': pickup.created_at || ''
+        '提货数量': nonNegativeNumber(pickup.qty), '长(cm)': pickup.lengthCm === '' || pickup.lengthCm == null ? '' : nonNegativeNumber(pickup.lengthCm),
+        '宽(cm)': pickup.widthCm === '' || pickup.widthCm == null ? '' : nonNegativeNumber(pickup.widthCm), '高(cm)': pickup.heightCm === '' || pickup.heightCm == null ? '' : nonNegativeNumber(pickup.heightCm),
+        '体积(cm³)': pickup.volumeCm3 === '' || pickup.volumeCm3 == null ? '' : nonNegativeNumber(pickup.volumeCm3), '重量(g)': pickup.weightG === '' || pickup.weightG == null ? '' : nonNegativeNumber(pickup.weightG),
+        '旧体积(m³)': pickup.volume || '', '旧重量(kg)': pickup.weight || '', '录入时间': pickup.created_at || ''
       };
     });
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(unmatchedPickupRows), '未匹配提货记录');
   }
-  XLSX.writeFile(workbook, '订单批次费用报表_' + todayStr() + '.xlsx');
-  toast('已导出 ' + report.rows.length + ' 个订单批次', 'success');
+  var safeProductName = selectedReportProduct.replace(/[\\/:*?"<>|]/g, '_');
+  XLSX.writeFile(workbook, safeProductName + '_订单批次费用报表_' + todayStr() + '.xlsx');
+  toast('已导出 ' + selectedRows.length + ' 个订单批次', 'success');
 }
 
 function exportAllData() {

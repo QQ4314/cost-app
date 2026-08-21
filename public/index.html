@@ -31,12 +31,25 @@
     .report-note { margin-bottom:12px;padding:10px 12px;border:1px solid #a7f3d0;background:#ecfdf5;color:#065f46;border-radius:10px;font-size:12px;line-height:1.6 }
     .report-note.warning { border-color:#fed7aa;background:#fff7ed;color:#9a3412 }
     .report-table th { background:#0f766e }
-    .product-table th { background:#0e7490 }
     .report-section-title { margin:16px 0 8px;font-size:16px;color:var(--text) }
     .report-table .batch-col { position:sticky;left:0;z-index:1;background:#fff;font-family:monospace }
     .report-table th.batch-col { z-index:2;background:#0f766e;font-family:inherit }
     .report-table tr:hover td.batch-col { background:#f0fdfa }
     .report-table tfoot td { background:#f0fdfa;font-weight:700;border-top:2px solid #99f6e4 }
+    .dimension-inputs { display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:center }
+    .dimension-separator { color:var(--text-secondary);font-weight:700;text-align:center }
+    .expense-pickup-row { position:relative;display:flex;gap:8px;margin-bottom:8px }
+    .expense-pickup-row .expense-pickup-search { flex:1 }
+    .expense-pickup-results { display:none;position:absolute;z-index:20;top:100%;left:0;right:44px;margin-top:4px;max-height:190px;overflow-y:auto;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-lg) }
+    .expense-pickup-result { padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border) }
+    .expense-pickup-result:last-child { border-bottom:none }
+    .expense-pickup-result:hover { background:var(--bg) }
+    .report-product-filter { position:relative;background:var(--card);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px;box-shadow:var(--shadow) }
+    .report-product-filter-row { display:flex;gap:8px;align-items:center }
+    .report-product-results { display:none;position:absolute;z-index:20;left:16px;right:72px;top:70px;max-height:220px;overflow-y:auto;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-lg) }
+    .report-product-option { padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border) }
+    .report-product-option:last-child { border-bottom:none }
+    .report-product-option:hover { background:var(--bg) }
     @media (max-width: 768px) {
       .report-toolbar { align-items:flex-start;flex-direction:column }
       .report-toolbar .btn { width:100%!important }
@@ -93,7 +106,15 @@
         <button class="btn btn-sm btn-primary" onclick="exportBatchReport()" style="width:auto;padding:10px 20px;background:#0f766e">📤 导出报表Excel</button>
       </div>
       <div id="reportNotice"></div>
-      <div id="productSummary"></div>
+      <div class="report-product-filter">
+        <label style="display:block;margin-bottom:7px;font-size:13px;font-weight:600">选择品名</label>
+        <div class="report-product-filter-row">
+          <input type="text" class="form-control" id="reportProductSearch" placeholder="输入品名关键词搜索..." autocomplete="off" oninput="searchReportProducts(this.value)" onfocus="searchReportProducts(this.value)" onblur="hideReportProductResults()">
+          <button type="button" class="btn btn-outline" onclick="clearReportProduct()" style="width:auto;white-space:nowrap;padding:8px 12px">清除</button>
+        </div>
+        <div class="report-product-results" id="reportProductResults"></div>
+      </div>
+      <div id="reportProductSummary"></div>
       <div id="reportList"></div>
       <div class="mgmt-grid" style="margin-top:16px">
         <div class="mgmt-card">
@@ -109,7 +130,7 @@
           <div id="sysSettings"></div>
         </div>
       </div>
-      <div class="version-info">批次成本管理 v2.8</div>
+      <div class="version-info">批次成本管理 v2.11</div>
     </div>
 
     <!-- 采购端弹窗 -->
@@ -153,10 +174,19 @@
             <input type="hidden" id="pickupBatchNo">
             <div id="selectedBatchInfo" style="display:none;margin-top:8px;padding:8px;background:var(--bg);border-radius:8px;font-size:13px"></div>
           </div>
-          <div class="form-row form-row-3">
+          <div class="form-row">
             <div class="form-group"><label>提货数量 <span style="color:var(--danger)">*</span></label><input type="number" class="form-control" id="pickupQty" min="1" step="1" required placeholder="0" oninput="updatePickupNo()"></div>
-            <div class="form-group"><label>体积(m³)</label><input type="number" class="form-control" id="pickupVolume" min="0" step="0.01" placeholder="0.00"></div>
-            <div class="form-group"><label>重量(kg)</label><input type="number" class="form-control" id="pickupWeight" min="0" step="0.01" placeholder="0.00"></div>
+            <div class="form-group"><label>重量(g)</label><input type="number" class="form-control" id="pickupWeightG" min="0" step="0.01" placeholder="0.00"></div>
+          </div>
+          <div class="form-group">
+            <label>尺寸（长 × 宽 × 高，cm）</label>
+            <div class="dimension-inputs">
+              <input type="number" class="form-control" id="pickupLengthCm" min="0" step="0.01" placeholder="长">
+              <span class="dimension-separator">×</span>
+              <input type="number" class="form-control" id="pickupWidthCm" min="0" step="0.01" placeholder="宽">
+              <span class="dimension-separator">×</span>
+              <input type="number" class="form-control" id="pickupHeightCm" min="0" step="0.01" placeholder="高">
+            </div>
           </div>
           <div class="form-group">
             <label>提货号（自动生成）</label>
@@ -190,16 +220,11 @@
             </div>
             <div class="form-group"><label>金额 <span style="color:var(--danger)">*</span></label><input type="number" class="form-control" id="expenseAmount" min="0.01" step="0.01" required placeholder="0.00"></div>
           </div>
-          <div class="form-row">
-            <div class="form-group" style="flex:1">
-              <label>提货号</label>
-              <select class="form-control" id="expensePickupNo">
-                <option value="">不关联</option>
-              </select>
-            </div>
-            <div class="form-group" style="flex:none;display:flex;align-items:flex-end">
-              <button type="button" class="btn btn-outline" onclick="closeShipExpenseModal();openPickupModal()" style="white-space:nowrap;font-size:12px;padding:6px 12px">+ 添加提货号</button>
-            </div>
+          <div class="form-group">
+            <label>关联提货号 <span style="color:var(--danger)">*</span></label>
+            <div id="expensePickupRows"></div>
+            <button type="button" class="btn btn-outline" onclick="addExpensePickupRow()" style="width:auto;font-size:12px;padding:6px 12px">+ 添加提货号</button>
+            <div style="margin-top:6px;font-size:11px;color:var(--text-secondary)">至少选择一个；可输入提货号、订单批次号、品牌或品名关键词搜索</div>
           </div>
           <div class="form-group">
             <label>计算方式</label>
@@ -217,6 +242,6 @@
 
   <div id="toast" class="toast"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/app.js?v=22"></script>
+  <script src="js/app.js?v=25"></script>
 </body>
 </html>
