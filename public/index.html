@@ -50,6 +50,16 @@
     .report-product-option { padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border) }
     .report-product-option:last-child { border-bottom:none }
     .report-product-option:hover { background:var(--bg) }
+    .proc-search-bar { display:flex;gap:8px;align-items:center;background:var(--card);border-radius:var(--radius);padding:12px;margin-bottom:12px;box-shadow:var(--shadow) }
+    .ship-view-tabs { display:flex;gap:6px;margin-bottom:12px;background:var(--card);border-radius:var(--radius);padding:5px;box-shadow:var(--shadow) }
+    .ship-view-tab { flex:1;border:none;border-radius:9px;padding:10px;background:transparent;color:var(--text-secondary);font-family:inherit;font-size:14px;font-weight:600;cursor:pointer }
+    .ship-view-tab.active { background:#f59e0b;color:#fff }
+    .ship-search-bar { display:flex;gap:8px;align-items:center;background:var(--card);border-radius:var(--radius);padding:12px;margin-bottom:12px;box-shadow:var(--shadow) }
+    .report-expense-detail-row > td { padding:0 10px 12px!important;background:#f8fafc }
+    .report-expense-detail-box { border:1px solid #cbd5e1;border-radius:8px;padding:10px;background:#fff }
+    .report-expense-detail-table { width:100%;border-collapse:collapse;font-size:11px;margin-top:7px }
+    .report-expense-detail-table th { background:#e2e8f0;color:#334155;padding:6px;text-align:left }
+    .report-expense-detail-table td { padding:6px;border-bottom:1px solid #e2e8f0;white-space:nowrap }
     @media (max-width: 768px) {
       .report-toolbar { align-items:flex-start;flex-direction:column }
       .report-toolbar .btn { width:100%!important }
@@ -75,6 +85,10 @@
     <!-- 采购端 -->
     <div id="procSection">
       <div class="stats-bar" id="procStats"></div>
+      <div class="proc-search-bar">
+        <input type="text" class="form-control" id="procSearchInput" placeholder="输入订单批次号或品名关键词搜索..." autocomplete="off" oninput="searchProcurement(this.value)">
+        <button type="button" class="btn btn-outline" onclick="clearProcurementSearch()" style="width:auto;white-space:nowrap;padding:8px 12px">清除</button>
+      </div>
       <div id="procList"></div>
       <div style="display:flex;gap:8px;justify-content:center;margin:16px 0">
         <button class="btn btn-sm btn-primary" onclick="openProcAdd()" style="width:auto;padding:10px 24px;background:#8b5cf6">➕ 新增采购</button>
@@ -88,7 +102,24 @@
     <!-- 运输端 -->
     <div id="shipSection" style="display:none">
       <div class="stats-bar" id="shipStats"></div>
-      <div id="shipList"></div>
+      <div class="ship-view-tabs">
+        <button type="button" class="ship-view-tab active" id="shipPickupTab" onclick="switchShippingView('pickups')">🚚 提货记录</button>
+        <button type="button" class="ship-view-tab" id="shipExpenseTab" onclick="switchShippingView('expenses')">💰 费用记录</button>
+      </div>
+      <div id="shipPickupPanel">
+        <div class="ship-search-bar">
+          <input type="text" class="form-control" id="pickupRecordSearch" placeholder="输入提货号关键词搜索..." autocomplete="off" oninput="searchPickupRecords(this.value)">
+          <button type="button" class="btn btn-outline" onclick="clearPickupRecordSearch()" style="width:auto;white-space:nowrap;padding:8px 12px">清除</button>
+        </div>
+        <div id="shipPickupList"></div>
+      </div>
+      <div id="shipExpensePanel" style="display:none">
+        <div class="ship-search-bar">
+          <input type="text" class="form-control" id="expenseRecordSearch" placeholder="输入费用批次号或提货号关键词搜索..." autocomplete="off" oninput="searchExpenseRecords(this.value)">
+          <button type="button" class="btn btn-outline" onclick="clearExpenseRecordSearch()" style="width:auto;white-space:nowrap;padding:8px 12px">清除</button>
+        </div>
+        <div id="shipExpenseList"></div>
+      </div>
       <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap">
         <button class="btn btn-sm btn-primary" onclick="openPickupModal()" style="width:auto;padding:10px 20px;background:#f59e0b">➕ 新增提货</button>
         <button class="btn btn-sm btn-primary" onclick="openShipExpenseModal()" style="width:auto;padding:10px 20px;background:#6366f1">💰 新增费用</button>
@@ -130,7 +161,7 @@
           <div id="sysSettings"></div>
         </div>
       </div>
-      <div class="version-info">批次成本管理 v2.11</div>
+      <div class="version-info">批次成本管理 v2.14</div>
     </div>
 
     <!-- 采购端弹窗 -->
@@ -242,6 +273,6 @@
 
   <div id="toast" class="toast"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/app.js?v=25"></script>
+  <script src="js/app.js?v=28"></script>
 </body>
 </html>

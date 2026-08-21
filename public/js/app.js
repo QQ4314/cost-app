@@ -6,6 +6,10 @@ var _isSyncing = false; // 标记是否正在从云端同步
 // 当前 Tab
 var currentTab = 'procurement';
 var selectedReportProduct = '';
+var procurementSearchKeyword = '';
+var shippingView = 'pickups';
+var pickupRecordSearchKeyword = '';
+var expenseRecordSearchKeyword = '';
 
 function switchTab(tab) {
   currentTab = tab;
@@ -112,8 +116,9 @@ function esc(s) { return String(s==null?'':s).replace(/[&<>]/g, function(m) { re
 // ===== 渲染入口 =====
 function render() {
   if (currentTab === 'procurement') {
-    renderProcurement(procData.records);
-    updatePagination(procData.records.length);
+    var filteredRecords = filterProcurementRecords(procData.records, procurementSearchKeyword);
+    renderProcurement(filteredRecords);
+    updatePagination(filteredRecords.length, procData.records.length);
   } else if (currentTab === 'shipping') {
     renderShipping();
   } else if (currentTab === 'report') {
@@ -121,11 +126,10 @@ function render() {
   }
 }
 
-function updatePagination(total) {
+function updatePagination(total, allTotal) {
   var pageInfo = document.getElementById('pageInfo');
   if (pageInfo) {
-    var pages = Math.max(1, Math.ceil(total / 50));
-    pageInfo.textContent = '共 ' + total + ' 条';
+    pageInfo.textContent = allTotal != null && total !== allTotal ? '找到 ' + total + ' 条（全部 ' + allTotal + ' 条）' : '共 ' + total + ' 条';
   }
 }
 
@@ -154,30 +158,64 @@ function pickupAllocationMetric(pickup, method) {
   return 0;
 }
 
+function filterPickupRecords(pickups, keyword) {
+  var normalized = String(keyword || '').trim().toLowerCase();
+  if (!normalized) return (pickups || []).slice();
+  return (pickups || []).filter(function(pickup) { return String(pickup.pickupNo || '').toLowerCase().indexOf(normalized) >= 0; });
+}
+
+function filterExpenseRecords(expenses, keyword) {
+  var normalized = String(keyword || '').trim().toLowerCase();
+  if (!normalized) return (expenses || []).slice();
+  return (expenses || []).filter(function(expense) {
+    return String(expense.expenseNo || '').toLowerCase().indexOf(normalized) >= 0 || getExpensePickupNos(expense).some(function(pickupNo) { return pickupNo.toLowerCase().indexOf(normalized) >= 0; });
+  });
+}
+
+function switchShippingView(view) {
+  shippingView = view === 'expenses' ? 'expenses' : 'pickups';
+  renderShipping();
+}
+
+function searchPickupRecords(keyword) { pickupRecordSearchKeyword = String(keyword || ''); renderShipping(); }
+function searchExpenseRecords(keyword) { expenseRecordSearchKeyword = String(keyword || ''); renderShipping(); }
+function clearPickupRecordSearch() { pickupRecordSearchKeyword = ''; document.getElementById('pickupRecordSearch').value = ''; renderShipping(); document.getElementById('pickupRecordSearch').focus(); }
+function clearExpenseRecordSearch() { expenseRecordSearchKeyword = ''; document.getElementById('expenseRecordSearch').value = ''; renderShipping(); document.getElementById('expenseRecordSearch').focus(); }
+
 function renderShipping() {
   var pickups = data.pickups || [];
   var expenses = data.shipExpenses || [];
+  var filteredPickups = filterPickupRecords(pickups, pickupRecordSearchKeyword);
+  var filteredExpenses = filterExpenseRecords(expenses, expenseRecordSearchKeyword);
   var totalExpense = expenses.reduce(function(s, x) { return s + nonNegativeNumber(x.amount); }, 0);
   document.getElementById('shipStats').innerHTML = '<div class="stat-card"><div class="num" style="color:#f59e0b">' + pickups.length + '</div><div class="label">提货记录</div></div>' + '<div class="stat-card"><div class="num" style="color:#6366f1">' + expenses.length + '</div><div class="label">费用笔数</div></div>' + '<div class="stat-card"><div class="num" style="color:#6366f1">¥' + totalExpense.toFixed(2) + '</div><div class="label">总费用</div></div>';
-  var html = '';
-  // 提货记录
-  if (pickups.length > 0) {
-    html += '<h4 style="margin:16px 0 8px;color:var(--text)">🚚 提货记录</h4>';
-    html += pickups.slice().reverse().map(function(p) {
+  document.getElementById('shipPickupTab').className = 'ship-view-tab' + (shippingView === 'pickups' ? ' active' : '');
+  document.getElementById('shipExpenseTab').className = 'ship-view-tab' + (shippingView === 'expenses' ? ' active' : '');
+  document.getElementById('shipPickupTab').textContent = '🚚 提货记录 (' + pickups.length + ')';
+  document.getElementById('shipExpenseTab').textContent = '💰 费用记录 (' + expenses.length + ')';
+  document.getElementById('shipPickupPanel').style.display = shippingView === 'pickups' ? '' : 'none';
+  document.getElementById('shipExpensePanel').style.display = shippingView === 'expenses' ? '' : 'none';
+
+  var pickupHtml = '';
+  if (filteredPickups.length > 0) {
+    pickupHtml = filteredPickups.slice().reverse().map(function(p) {
       return '<div class="batch-card" style="cursor:default;padding:10px">' + '<div style="display:flex;justify-content:space-between;align-items:center">' + '<div><div style="font-weight:600;font-size:13px;font-family:monospace">' + esc(p.pickupNo) + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(p.batchNo) + ' | ' + esc(p.brand||'') + ' ' + esc(p.productName||'') + pickupMeasurementText(p) + '</div></div>' + '<div style="text-align:right"><div style="font-size:14px;font-weight:600">' + fmtQty(p.qty) + '件</div>' + '<button class="btn btn-xs btn-danger" onclick="deletePickup(\'' + esc(p.pickupNo) + '\')" style="font-size:10px;padding:2px 8px;margin-top:4px">删除</button></div>' + '</div></div>';
     }).join('');
   } else {
-    html += '<div class="empty-state"><div class="icon">🚚</div><p>暂无提货记录</p></div>';
+    pickupHtml = pickups.length && pickupRecordSearchKeyword.trim() ? '<div class="empty-state"><div class="icon">🔎</div><p>没有匹配的提货号</p></div>' : '<div class="empty-state"><div class="icon">🚚</div><p>暂无提货记录</p></div>';
   }
-  // 费用记录
-  if (expenses.length > 0) {
-    html += '<h4 style="margin:16px 0 8px;color:var(--text)">💰 费用记录</h4>';
-    html += expenses.slice().reverse().map(function(e) {
+  document.getElementById('shipPickupList').innerHTML = pickupHtml;
+
+  var expenseHtml = '';
+  if (filteredExpenses.length > 0) {
+    expenseHtml = filteredExpenses.slice().reverse().map(function(e) {
       var pickupNos = getExpensePickupNos(e);
       return '<div class="batch-card" style="cursor:default;padding:10px">' + '<div style="display:flex;justify-content:space-between;align-items:center">' + '<div><div style="font-weight:600;font-size:13px;font-family:monospace">' + esc(e.expenseNo||'') + '</div>' + '<div style="font-size:12px;color:var(--text-secondary)">' + esc(e.feeType||'') + (pickupNos.length ? ' | 提货:' + pickupNos.map(esc).join('、') : '') + (e.calcMethod ? ' | ' + esc(e.calcMethod) : '') + '</div></div>' + '<div style="text-align:right"><div style="font-size:14px;font-weight:600;color:#6366f1">¥' + nonNegativeNumber(e.amount).toFixed(2) + '</div>' + '<button class="btn btn-xs btn-danger" onclick="deleteShipExpense(' + e.id + ')" style="font-size:10px;padding:2px 8px;margin-top:4px">删除</button></div>' + '</div></div>';
     }).join('');
+  } else {
+    expenseHtml = expenses.length && expenseRecordSearchKeyword.trim() ? '<div class="empty-state"><div class="icon">🔎</div><p>没有匹配的费用批次号或提货号</p></div>' : '<div class="empty-state"><div class="icon">💰</div><p>暂无费用记录</p></div>';
   }
-  document.getElementById('shipList').innerHTML = html;
+  document.getElementById('shipExpenseList').innerHTML = expenseHtml;
 }
 
 // ===== 新增提货 =====
@@ -286,7 +324,7 @@ function savePickup(e) {
   if (!data.pickups) data.pickups = [];
   var proc = status.records[0];
   data.pickups.push({ pickupNo: pickupNo, batchNo: batchNo, brand: proc.brand || '', productName: proc.productName || '', qty: qty, lengthCm: measurements.lengthCm, widthCm: measurements.widthCm, heightCm: measurements.heightCm, volumeCm3: measurements.volumeCm3, weightG: measurements.weightG, created_at: nowStr() });
-  saveData(); closePickupModal(); render(); toast('提货记录已添加', 'success');
+  shippingView = 'pickups'; saveData(); closePickupModal(); render(); toast('提货记录已添加', 'success');
 }
 function deletePickup(pickupNo) {
   if (!confirm('确定删除该提货记录？')) return;
@@ -408,7 +446,7 @@ function saveShipExpense(e) {
     created_at: nowStr()
   };
   data.shipExpenses.push(obj);
-  saveData(); closeShipExpenseModal(); render(); toast('费用已添加', 'success');
+  shippingView = 'expenses'; saveData(); closeShipExpenseModal(); render(); toast('费用已添加', 'success');
 }
 function deleteShipExpense(id) {
   if (!confirm('确定删除该费用记录？')) return;
@@ -445,12 +483,35 @@ function ensureOrderBatchNumbers() {
 }
 
 // ===== 采购端 =====
+function filterProcurementRecords(records, keyword) {
+  var normalized = String(keyword || '').trim().toLowerCase();
+  if (!normalized) return (records || []).slice();
+  return (records || []).filter(function(record) {
+    return String(record.batchNo || '').toLowerCase().indexOf(normalized) >= 0 || String(record.productName || '').toLowerCase().indexOf(normalized) >= 0;
+  });
+}
+
+function searchProcurement(keyword) {
+  procurementSearchKeyword = String(keyword || '');
+  var filteredRecords = filterProcurementRecords(procData.records, procurementSearchKeyword);
+  renderProcurement(filteredRecords);
+  updatePagination(filteredRecords.length, procData.records.length);
+}
+
+function clearProcurementSearch() {
+  procurementSearchKeyword = '';
+  document.getElementById('procSearchInput').value = '';
+  renderProcurement(procData.records);
+  updatePagination(procData.records.length, procData.records.length);
+  document.getElementById('procSearchInput').focus();
+}
+
 function renderProcurement(list) {
   var totalOrderQty = list.reduce(function(s, p) { return s + nonNegativeNumber(p.orderQty); }, 0);
   var totalOutputQty = list.reduce(function(s, p) { return s + nonNegativeNumber(p.outputQty); }, 0);
   var totalProcurementFee = list.reduce(function(s, p) { return s + calcProcurementFee(p); }, 0);
   document.getElementById('procStats').innerHTML = '<div class="stat-card"><div class="num" style="color:#8b5cf6">' + list.length + '</div><div class="label">采购记录</div></div>' + '<div class="stat-card"><div class="num" style="color:#8b5cf6">' + totalOrderQty + '</div><div class="label">下单总量</div></div>' + '<div class="stat-card"><div class="num" style="color:#8b5cf6">' + totalOutputQty + '</div><div class="label">产出总量</div></div>' + '<div class="stat-card"><div class="num" style="color:#8b5cf6">¥' + num(totalProcurementFee) + '</div><div class="label">采购费用</div></div>';
-  if (list.length === 0) { document.getElementById('procList').innerHTML = '<div class="empty-state"><div class="icon">🛒</div><p>暂无采购记录</p></div>'; return; }
+  if (list.length === 0) { document.getElementById('procList').innerHTML = procData.records.length && procurementSearchKeyword.trim() ? '<div class="empty-state"><div class="icon">🔎</div><p>没有匹配的订单批次号或品名</p></div>' : '<div class="empty-state"><div class="icon">🛒</div><p>暂无采购记录</p></div>'; return; }
   var h = '<div style="overflow-x:auto"><table class="proc-table"><thead><tr>' + '<th>订单批次号</th><th>下单日期</th><th>品牌</th><th>品名</th>' + '<th class="num-col">下单数量</th><th class="num-col">产出数量</th>' + '<th class="num-col">原料总成本</th><th class="num-col">包材总成本</th><th class="num-col">工费总额</th><th class="num-col">采购费用</th>' + '<th style="width:90px">操作</th></tr></thead><tbody>';
   list.forEach(function(p) {
     h += '<tr>' + '<td><span style="font-size:11px;color:#6b7280;font-family:monospace">' + esc(p.batchNo||'') + '</span></td>' + '<td>' + esc(p.date||'') + '</td>' + '<td><strong>' + esc(p.brand||'') + '</strong></td>' + '<td>' + esc(p.productName||'') + '</td>' + '<td class="num-col">' + fmtQty(p.orderQty) + '</td>' + '<td class="num-col">' + fmtQty(p.outputQty) + '</td>' + '<td class="num-col">' + num(nonNegativeNumber(p.materialPrice)) + '</td>' + '<td class="num-col">' + num(nonNegativeNumber(p.packagingPrice)) + '</td>' + '<td class="num-col">' + num(nonNegativeNumber(p.laborCost)) + '</td><td class="num-col"><strong>¥' + num(calcProcurementFee(p)) + '</strong></td>' + '<td><button class="btn btn-xs btn-outline" onclick="event.stopPropagation();openProcEdit(' + p.id + ')" style="font-size:11px;padding:2px 8px">✏️</button> <button class="btn btn-xs btn-danger" onclick="event.stopPropagation();deleteProcurement(' + p.id + ')" style="font-size:11px;padding:2px 8px">🗑️</button></td></tr>';
@@ -597,7 +658,7 @@ function buildBatchReport(records, pickups, expenses) {
         dates: [], brands: [], productNames: [], recordCount: 0,
         orderQty: 0, outputQty: 0, pickupQty: 0, pickupCount: 0,
         materialCost: 0, packagingCost: 0, laborCost: 0,
-        shippingCost: 0, expenseCount: 0
+        shippingCost: 0, expenseCount: 0, shippingExpenseDetails: []
       };
       groupKeys.push(groupKey);
     }
@@ -658,14 +719,25 @@ function buildBatchReport(records, pickups, expenses) {
     if (!links.length || links.some(function(link) { return !link.groupKey || !link.pickup; })) { unallocatedExpenses.push(expense); return; }
     var weights = links.map(function(link) { return pickupAllocationMetric(link.pickup, expense.calcMethod); });
     var totalWeight = weights.reduce(function(sum, weight) { return sum + weight; }, 0);
-    if (totalWeight <= 0) { weights = links.map(function() { return 1; }); totalWeight = links.length; }
+    var allocationBasis = expense.calcMethod || '平均分摊';
+    if (totalWeight <= 0) { weights = links.map(function() { return 1; }); totalWeight = links.length; allocationBasis = expense.calcMethod ? expense.calcMethod + '（无数据，平均分摊）' : '平均分摊'; }
     var amount = nonNegativeNumber(expense.amount);
-    var touchedGroups = Object.create(null);
+    var allocations = Object.create(null);
     links.forEach(function(link, index) {
-      groups[link.groupKey].shippingCost += amount * weights[index] / totalWeight;
-      touchedGroups[link.groupKey] = true;
+      if (!allocations[link.groupKey]) allocations[link.groupKey] = { amount: 0, pickupNos: [] };
+      allocations[link.groupKey].amount += amount * weights[index] / totalWeight;
+      addUniqueValue(allocations[link.groupKey].pickupNos, link.pickupNo);
     });
-    Object.keys(touchedGroups).forEach(function(groupKey) { groups[groupKey].expenseCount++; });
+    Object.keys(allocations).forEach(function(groupKey) {
+      var allocation = allocations[groupKey];
+      groups[groupKey].shippingCost += allocation.amount;
+      groups[groupKey].expenseCount++;
+      groups[groupKey].shippingExpenseDetails.push({
+        expenseNo: expense.expenseNo || '', feeType: expense.feeType || '', calcMethod: expense.calcMethod || '',
+        allocationBasis: allocationBasis, pickupNos: allocation.pickupNos, allPickupNos: pickupNos,
+        originalAmount: amount, allocatedAmount: allocation.amount, created_at: expense.created_at || ''
+      });
+    });
   });
 
   var rows = groupKeys.map(function(groupKey) {
@@ -783,6 +855,18 @@ function reportRowsForProduct(rows, productName) {
   return (rows || []).filter(function(row) { return (row.productNames || []).indexOf(productName) !== -1; });
 }
 
+function renderBatchShippingExpenseDetails(row) {
+  var details = row.shippingExpenseDetails || [];
+  if (!details.length) return '';
+  var detailRows = details.map(function(detail) {
+    return '<tr><td><strong>' + esc(detail.expenseNo || '') + '</strong></td><td>' + esc(detail.feeType || '') + '</td>' +
+      '<td>' + (detail.pickupNos || []).map(esc).join('、') + '</td><td>' + esc(detail.allocationBasis || '') + '</td>' +
+      '<td class="num-col">¥' + num(detail.originalAmount) + '</td><td class="num-col"><strong>¥' + num(detail.allocatedAmount) + '</strong></td></tr>';
+  }).join('');
+  return '<tr class="report-expense-detail-row"><td colspan="14"><div class="report-expense-detail-box"><strong style="font-size:12px;color:#475569">🚛 运输费用明细（' + details.length + ' 项）</strong>' +
+    '<div style="overflow-x:auto"><table class="report-expense-detail-table"><thead><tr><th>费用批次号</th><th>费用类型</th><th>本批次关联提货号</th><th>分摊方式</th><th class="num-col">原费用金额</th><th class="num-col">本批次分摊金额</th></tr></thead><tbody>' + detailRows + '</tbody></table></div></div></td></tr>';
+}
+
 function renderReport() {
   var report = buildBatchReport(procData.records, data.pickups || [], data.shipExpenses || []);
   var totals = report.totals;
@@ -846,7 +930,7 @@ function renderReport() {
         '<td class="num-col">¥' + num(row.materialCost) + '</td><td class="num-col">¥' + num(row.packagingCost) + '</td><td class="num-col">¥' + num(row.laborCost) + '</td>' +
         '<td class="num-col">¥' + num(row.procurementCost) + '</td><td class="num-col">¥' + num(row.shippingCost) + '</td>' +
         '<td class="num-col"><strong>¥' + num(row.totalCost) + '</strong></td><td class="num-col"><strong>' + (row.unitCost == null ? '--' : '¥' + num(row.unitCost)) + '</strong></td>' +
-        '</tr>';
+        '</tr>' + renderBatchShippingExpenseDetails(row);
     });
     html += '</tbody><tfoot><tr><td class="batch-col">汇总</td><td colspan="3">' + selectedRows.length + ' 个订单批次</td>' +
       '<td class="num-col">' + fmtQty(selectedTotals.orderQty) + '</td><td class="num-col">' + fmtQty(selectedTotals.outputQty) + '</td><td class="num-col">' + fmtQty(selectedTotals.pickupQty) + '</td>' +
@@ -892,6 +976,21 @@ function exportBatchReport() {
   var reportSheet = XLSX.utils.json_to_sheet(rows);
   reportSheet['!cols'] = [{wch:28},{wch:12},{wch:14},{wch:18},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:14},{wch:12},{wch:12}];
   XLSX.utils.book_append_sheet(workbook, reportSheet, '订单批次明细');
+  var shippingDetailRows = [];
+  selectedRows.forEach(function(row) {
+    (row.shippingExpenseDetails || []).forEach(function(detail) {
+      shippingDetailRows.push({
+        '订单批次号': row.batchNo, '品名': row.productName, '费用批次号': detail.expenseNo, '费用类型': detail.feeType,
+        '本批次关联提货号': (detail.pickupNos || []).join('、'), '全部关联提货号': (detail.allPickupNos || []).join('、'),
+        '分摊方式': detail.allocationBasis, '原费用金额': detail.originalAmount, '本批次分摊金额': detail.allocatedAmount, '录入时间': detail.created_at || ''
+      });
+    });
+  });
+  if (shippingDetailRows.length) {
+    var shippingDetailSheet = XLSX.utils.json_to_sheet(shippingDetailRows);
+    shippingDetailSheet['!cols'] = [{wch:28},{wch:18},{wch:18},{wch:14},{wch:28},{wch:34},{wch:22},{wch:14},{wch:18},{wch:20}];
+    XLSX.utils.book_append_sheet(workbook, shippingDetailSheet, '运输费用明细');
+  }
   if (report.unallocatedExpenses.length) {
     var unallocatedRows = report.unallocatedExpenses.map(function(expense) {
       var pickupNos = getExpensePickupNos(expense);
