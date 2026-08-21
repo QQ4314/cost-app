@@ -25,13 +25,29 @@
     .proc-table td { padding:8px;border-bottom:1px solid var(--border);white-space:nowrap }
     .proc-table tr:hover td { background:#f5f3ff }
     .proc-table .num-col { text-align:right;font-variant-numeric:tabular-nums }
+    .report-toolbar { display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px }
+    .report-toolbar h2 { margin:0;font-size:18px }
+    .report-toolbar p { margin:4px 0 0;color:var(--text-secondary);font-size:12px }
+    .report-note { margin-bottom:12px;padding:10px 12px;border:1px solid #a7f3d0;background:#ecfdf5;color:#065f46;border-radius:10px;font-size:12px;line-height:1.6 }
+    .report-note.warning { border-color:#fed7aa;background:#fff7ed;color:#9a3412 }
+    .report-table th { background:#0f766e }
+    .product-table th { background:#0e7490 }
+    .report-section-title { margin:16px 0 8px;font-size:16px;color:var(--text) }
+    .report-table .batch-col { position:sticky;left:0;z-index:1;background:#fff;font-family:monospace }
+    .report-table th.batch-col { z-index:2;background:#0f766e;font-family:inherit }
+    .report-table tr:hover td.batch-col { background:#f0fdfa }
+    .report-table tfoot td { background:#f0fdfa;font-weight:700;border-top:2px solid #99f6e4 }
+    @media (max-width: 768px) {
+      .report-toolbar { align-items:flex-start;flex-direction:column }
+      .report-toolbar .btn { width:100%!important }
+    }
   </style>
 </head>
 <body>
 
   <div class="header">
     <h1>📦 批次成本管理</h1>
-    <p>录入生产批次信息，自动核算单位成本</p>
+    <p>录入采购与运输信息，按订单批次自动核算成本</p>
   </div>
 
   <div class="container-wide" id="app">
@@ -40,7 +56,7 @@
     <div class="nav-tabs">
       <button class="nav-tab active" onclick="switchTab('procurement')" id="tabProcurement">🛒 采购端</button>
       <button class="nav-tab" onclick="switchTab('shipping')" id="tabShipping">🚚 运输端</button>
-      <button class="nav-tab" onclick="switchTab('management')" id="tabManagement">⚙️ 管理端</button>
+      <button class="nav-tab" onclick="switchTab('report')" id="tabReport">📊 报表端</button>
     </div>
 
     <!-- 采购端 -->
@@ -52,9 +68,7 @@
         <button class="btn btn-sm btn-outline" onclick="exportProcCSV()" style="width:auto;padding:10px 24px">📤 导出Excel</button>
       </div>
       <div class="pagination" style="margin-top:16px">
-        <button class="page-btn" id="prevPage" onclick="changePage(-1)">← 上一页</button>
-        <span class="page-info" id="pageInfo">第 1 页</span>
-        <button class="page-btn" id="nextPage" onclick="changePage(1)">下一页 →</button>
+        <span class="page-info" id="pageInfo">共 0 条</span>
       </div>
     </div>
 
@@ -68,24 +82,34 @@
       </div>
     </div>
 
-    <!-- 管理端 -->
-    <div id="mgmtSection" style="display:none">
-      <div class="stats-bar" id="mgmtStats"></div>
-      <div class="mgmt-grid">
+    <!-- 报表端 -->
+    <div id="reportSection" style="display:none">
+      <div class="stats-bar" id="reportStats"></div>
+      <div class="report-toolbar">
+        <div>
+          <h2>订单批次费用报表</h2>
+          <p>以采购端订单批次号为基准，逐笔记录采购费用和运输费用</p>
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="exportBatchReport()" style="width:auto;padding:10px 20px;background:#0f766e">📤 导出报表Excel</button>
+      </div>
+      <div id="reportNotice"></div>
+      <div id="productSummary"></div>
+      <div id="reportList"></div>
+      <div class="mgmt-grid" style="margin-top:16px">
         <div class="mgmt-card">
           <h3>☁️ 云端同步</h3>
           <div id="cloudSync"></div>
         </div>
         <div class="mgmt-card">
-          <h3>📊 数据统计</h3>
-          <div id="dataStats"></div>
+          <h3>📐 报表口径</h3>
+          <div id="reportMethod"></div>
         </div>
         <div class="mgmt-card">
           <h3>⚙️ 系统设置</h3>
           <div id="sysSettings"></div>
         </div>
       </div>
-      <div class="version-info">批次成本管理 v2.5</div>
+      <div class="version-info">批次成本管理 v2.8</div>
     </div>
 
     <!-- 采购端弹窗 -->
@@ -103,13 +127,13 @@
             <div class="form-group"><label>品名 <span style="color:var(--danger)">*</span></label><input type="text" class="form-control" id="procProductName" required placeholder="产品名称"></div>
           </div>
           <div class="form-row form-row-3">
-            <div class="form-group"><label>下单数量</label><input type="number" class="form-control" id="procOrderQty" step="1" placeholder="0"></div>
-            <div class="form-group"><label>产出数量</label><input type="number" class="form-control" id="procOutputQty" step="1" placeholder="0"></div>
+            <div class="form-group"><label>下单数量</label><input type="number" class="form-control" id="procOrderQty" min="0" step="1" placeholder="0"></div>
+            <div class="form-group"><label>产出数量</label><input type="number" class="form-control" id="procOutputQty" min="0" step="1" placeholder="0"></div>
           </div>
           <div class="form-row form-row-3">
-            <div class="form-group"><label>原料价格</label><input type="number" class="form-control" id="procMaterialPrice" step="0.01" placeholder="0.00"></div>
-            <div class="form-group"><label>包材价格</label><input type="number" class="form-control" id="procPackagingPrice" step="0.01" placeholder="0.00"></div>
-            <div class="form-group"><label>工费</label><input type="number" class="form-control" id="procLaborCost" step="0.01" placeholder="0.00"></div>
+            <div class="form-group"><label>原料总成本</label><input type="number" class="form-control" id="procMaterialPrice" min="0" step="0.01" placeholder="0.00"></div>
+            <div class="form-group"><label>包材总成本</label><input type="number" class="form-control" id="procPackagingPrice" min="0" step="0.01" placeholder="0.00"></div>
+            <div class="form-group"><label>工费总额</label><input type="number" class="form-control" id="procLaborCost" min="0" step="0.01" placeholder="0.00"></div>
           </div>
           <button type="submit" class="btn btn-primary" style="background:#8b5cf6">保存</button>
         </form>
@@ -123,16 +147,16 @@
         <h3 style="margin-bottom:16px">🚚 新增提货</h3>
         <form onsubmit="savePickup(event)">
           <div class="form-group">
-            <label>选择批次号 <span style="color:var(--danger)">*</span></label>
-            <input type="text" class="form-control" id="pickupBatchSearch" placeholder="输入关键字搜索批次号..." oninput="searchBatch(this.value)" autocomplete="off">
+            <label>选择订单批次号 <span style="color:var(--danger)">*</span></label>
+            <input type="text" class="form-control" id="pickupBatchSearch" placeholder="输入关键字搜索订单批次号..." oninput="searchBatch(this.value)" autocomplete="off">
             <div id="batchSearchResults" style="display:none;position:absolute;z-index:10;background:var(--card);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;width:calc(100% - 32px);margin-top:4px"></div>
             <input type="hidden" id="pickupBatchNo">
             <div id="selectedBatchInfo" style="display:none;margin-top:8px;padding:8px;background:var(--bg);border-radius:8px;font-size:13px"></div>
           </div>
           <div class="form-row form-row-3">
-            <div class="form-group"><label>提货数量 <span style="color:var(--danger)">*</span></label><input type="number" class="form-control" id="pickupQty" step="1" required placeholder="0" oninput="updatePickupNo()"></div>
-            <div class="form-group"><label>体积(m³)</label><input type="number" class="form-control" id="pickupVolume" step="0.01" placeholder="0.00"></div>
-            <div class="form-group"><label>重量(kg)</label><input type="number" class="form-control" id="pickupWeight" step="0.01" placeholder="0.00"></div>
+            <div class="form-group"><label>提货数量 <span style="color:var(--danger)">*</span></label><input type="number" class="form-control" id="pickupQty" min="1" step="1" required placeholder="0" oninput="updatePickupNo()"></div>
+            <div class="form-group"><label>体积(m³)</label><input type="number" class="form-control" id="pickupVolume" min="0" step="0.01" placeholder="0.00"></div>
+            <div class="form-group"><label>重量(kg)</label><input type="number" class="form-control" id="pickupWeight" min="0" step="0.01" placeholder="0.00"></div>
           </div>
           <div class="form-group">
             <label>提货号（自动生成）</label>
@@ -164,7 +188,7 @@
                 <option value="仓储费">仓储费</option>
               </select>
             </div>
-            <div class="form-group"><label>金额 <span style="color:var(--danger)">*</span></label><input type="number" class="form-control" id="expenseAmount" step="0.01" required placeholder="0.00"></div>
+            <div class="form-group"><label>金额 <span style="color:var(--danger)">*</span></label><input type="number" class="form-control" id="expenseAmount" min="0.01" step="0.01" required placeholder="0.00"></div>
           </div>
           <div class="form-row">
             <div class="form-group" style="flex:1">
@@ -193,6 +217,6 @@
 
   <div id="toast" class="toast"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/app.js?v=18"></script>
+  <script src="js/app.js?v=22"></script>
 </body>
 </html>
